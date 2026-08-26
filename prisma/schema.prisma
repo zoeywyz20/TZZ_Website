@@ -114,9 +114,24 @@ model Profile {
   uploadedVersions    FileVersion[]
   submissions         Submission[]
   reviews             ReviewRecord[]
+  sessions            Session[]
 
   @@index([departmentId])
   @@map("profiles")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  profileId String   @map("profile_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
 model Task {

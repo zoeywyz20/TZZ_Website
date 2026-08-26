@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Plus, Search, CheckCircle2, Circle } from 'lucide-react';
@@ -8,7 +8,8 @@ import { cn, getDeadlineStatus, formatDate } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { TaskStatus, TaskStatusLabel, TaskPriority } from '@/types';
 import { canCreateTask } from '@/lib/permissions';
-import { tasks, getDepartmentById, getProfileById } from '@/data/mock';
+import { workspaceApi } from '@/lib/api/workspace';
+import type { TaskDto } from '@/lib/api/contracts';
 import { Badge } from '@/components/ui/badge';
 
 const fadeUp = {
@@ -20,20 +21,17 @@ export default function TaskManagementPage() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [tasks, setTasks] = useState<TaskDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filteredTasks = useMemo(() => {
-    let result = [...tasks];
-
-    if (statusFilter !== 'all') {
-      result = result.filter((t) => t.status === statusFilter);
-    }
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((t) => t.title.toLowerCase().includes(q));
-    }
-
-    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  useEffect(() => {
+    let active = true;
+    workspaceApi.tasks({ status: statusFilter === 'all' ? undefined : statusFilter, q: searchQuery || undefined })
+      .then((result) => { if (active) { setTasks(result); setError(''); } })
+      .catch(() => { if (active) setError('任务加载失败，请稍后重试。'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [searchQuery, statusFilter]);
 
   const statusOptions = [
@@ -96,15 +94,17 @@ export default function TaskManagementPage() {
           </div>
 
           {/* Rows */}
-          {filteredTasks.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-16"><p className="text-sm text-muted-foreground">正在加载任务…</p></div>
+          ) : error ? (
+            <div className="text-center py-16"><p className="text-sm text-destructive">{error}</p></div>
+          ) : tasks.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm text-muted-foreground">没有找到相关任务</p>
             </div>
           ) : (
-            filteredTasks.map((task) => {
+            tasks.map((task) => {
               const deadline = getDeadlineStatus(task.finalDeadline);
-              const dept = getDepartmentById(task.departmentId);
-              const leader = getProfileById(task.leaderId);
 
               return (
                 <Link
@@ -131,8 +131,8 @@ export default function TaskManagementPage() {
                       )}
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">{dept?.shortName}</span>
-                  <span className="text-sm">{leader?.name}</span>
+                  <span className="text-sm text-muted-foreground">{task.department.shortName}</span>
+                  <span className="text-sm">{task.leader.name}</span>
                   <span className={cn(
                     'text-sm font-tabular',
                     deadline.variant === 'danger' && 'text-destructive font-medium',

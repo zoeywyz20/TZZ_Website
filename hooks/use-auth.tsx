@@ -3,60 +3,56 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { type Profile } from '@/types';
-import { currentUser as mockCurrentUser, getUnreadNotificationCount } from '@/data/mock';
+import { authApi } from '@/lib/api/auth';
 
 interface AuthContextType {
   user: Profile | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   unreadCount: number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'ocean_workspace_user';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Profile | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (stored === 'null') return null;
-      if (stored) {
-        try {
-          return JSON.parse(stored);
-        } catch {
-          // fallback
-        }
-      }
-    }
-    return mockCurrentUser;
-  });
+  const [user, setUser] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
 
   const isAuthenticated = user !== null;
-  const unreadCount = user ? getUnreadNotificationCount(user.id) : 0;
+  const unreadCount = 0;
 
-  const login = useCallback(async (_email: string, _password: string): Promise<boolean> => {
-    await new Promise((r) => setTimeout(r, 400));
-    setUser(mockCurrentUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockCurrentUser));
-    }
-    return true;
+  useEffect(() => {
+    let active = true;
+    authApi.me().then((currentUser) => {
+      if (active) setUser(currentUser);
+    }).catch(() => {
+      if (active) setUser(null);
+    }).finally(() => {
+      if (active) setIsLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_STORAGE_KEY, 'null');
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
+    const currentUser = await authApi.login(email, password);
+    setUser(currentUser);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      setUser(null);
+      router.push('/login');
     }
-    router.push('/login');
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout, unreadCount }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, unreadCount }}>
       {children}
     </AuthContext.Provider>
   );

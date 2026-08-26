@@ -1,6 +1,6 @@
 // ============================================================
 // Storage Adapter — Abstraction layer for file storage
-// Supports: Local (dev) → Aliyun OSS (production)
+// Current scope: local filesystem storage. Object storage is not configured here.
 // ============================================================
 
 export interface UploadOptions {

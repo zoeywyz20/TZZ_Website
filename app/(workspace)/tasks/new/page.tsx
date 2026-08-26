@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Trash2, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { TaskPriority, TaskPriorityLabel, Visibility, VisibilityLabel } from '@/types';
-import { departments, profiles } from '@/data/mock';
+import type { DepartmentDto, MemberDto } from '@/lib/api/contracts';
+import { workspaceApi } from '@/lib/api/workspace';
 import { Separator } from '@/components/ui/separator';
 
 const fadeUp = {
@@ -38,6 +38,23 @@ export default function CreateTaskPage() {
   const [deliverables, setDeliverables] = useState<DeliverableForm[]>([
     { id: '1', name: '', description: '', required: true, formats: '.docx,.pdf' },
   ]);
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [profiles, setProfiles] = useState<MemberDto[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([workspaceApi.departments(), workspaceApi.members()])
+      .then(([departmentData, memberData]) => {
+        if (!active) return;
+        setDepartments(departmentData);
+        setProfiles(memberData);
+      })
+      .catch(() => { if (active) toast.error('部门或成员加载失败，请刷新后重试。'); })
+      .finally(() => { if (active) setLoadingOptions(false); });
+    return () => { active = false; };
+  }, []);
 
   const addDeliverable = () => {
     setDeliverables([...deliverables, {
@@ -58,14 +75,17 @@ export default function CreateTaskPage() {
     setDeliverables(deliverables.map((d) => d.id === id ? { ...d, [field]: value } : d));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitTask = async (status: 'DRAFT' | 'ASSIGNED') => {
     if (!title.trim()) {
       toast.error('请输入任务名称');
       return;
     }
     if (!departmentId) {
       toast.error('请选择承办部门');
+      return;
+    }
+    if (!leaderId) {
+      toast.error('请选择负责人');
       return;
     }
     if (!finalDeadline) {
@@ -76,9 +96,28 @@ export default function CreateTaskPage() {
       toast.error('内部截止时间必须早于最终截止时间');
       return;
     }
-    toast.success('任务创建成功');
-    router.push('/tasks');
+    setSubmitting(true);
+    try {
+      const task = await workspaceApi.createTask({
+        title, description, source, departmentId, leaderId, priority, visibility, status,
+        internalDeadline: internalDeadline ? new Date(internalDeadline).toISOString() : undefined,
+        finalDeadline: new Date(finalDeadline).toISOString(),
+        tags: [],
+        deliverables: deliverables.filter((item) => item.name.trim()).map((item) => ({
+          name: item.name, description: item.description || undefined, required: item.required,
+          allowedFormats: item.formats.split(',').map((format) => format.trim()).filter(Boolean),
+        })),
+      });
+      toast.success(status === 'DRAFT' ? '任务已保存为草稿' : '任务创建成功');
+      router.push(`/tasks/${task.id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '任务创建失败，请稍后重试。');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); void submitTask('ASSIGNED'); };
 
   return (
     <div className="p-6 lg:p-10 max-w-[800px] mx-auto">
@@ -130,6 +169,7 @@ export default function CreateTaskPage() {
                     value={departmentId}
                     onChange={(e) => setDepartmentId(e.target.value)}
                     className="input-field"
+                    disabled={loadingOptions}
                   >
                     <option value="">选择部门</option>
                     {departments.map((d) => (
@@ -145,6 +185,7 @@ export default function CreateTaskPage() {
                     value={leaderId}
                     onChange={(e) => setLeaderId(e.target.value)}
                     className="input-field"
+                    disabled={loadingOptions}
                   >
                     <option value="">选择负责人</option>
                     {profiles.map((p) => (
@@ -283,16 +324,18 @@ export default function CreateTaskPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { toast.info('任务已保存为草稿'); }}
+                onClick={() => { void submitTask('DRAFT'); }}
+                disabled={submitting}
                 className="h-10 px-5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
               >
                 存为草稿
               </button>
               <button
                 type="submit"
+                disabled={submitting || loadingOptions}
                 className="h-10 px-6 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors"
               >
-                创建并下发
+                {submitting ? '正在提交…' : '创建并下发'}
               </button>
             </div>
           </motion.div>

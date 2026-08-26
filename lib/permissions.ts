@@ -91,32 +91,34 @@ const permissionMatrix: Record<Role, Set<Action>> = {
 
 // ---------- Permission Check ----------
 
-export function can(user: Profile | null, action: Action): boolean {
+type PermissionUser = Pick<Profile, 'role'>;
+
+export function can(user: PermissionUser | null, action: Action): boolean {
   if (!user) return false;
   return permissionMatrix[user.role]?.has(action) ?? false;
 }
 
-export function canCreateTask(user: Profile | null): boolean {
+export function canCreateTask(user: PermissionUser | null): boolean {
   return can(user, 'task:create');
 }
 
-export function canReview(user: Profile | null): boolean {
+export function canReview(user: PermissionUser | null): boolean {
   return can(user, 'review:approve');
 }
 
-export function canManageMembers(user: Profile | null): boolean {
+export function canManageMembers(user: PermissionUser | null): boolean {
   return can(user, 'member:manage');
 }
 
-export function canManageDepartments(user: Profile | null): boolean {
+export function canManageDepartments(user: PermissionUser | null): boolean {
   return can(user, 'department:manage');
 }
 
-export function canDeleteFile(user: Profile | null): boolean {
+export function canDeleteFile(user: PermissionUser | null): boolean {
   return can(user, 'file:delete');
 }
 
-export function canViewAllTasks(user: Profile | null): boolean {
+export function canViewAllTasks(user: PermissionUser | null): boolean {
   return can(user, 'task:view_all');
 }
 

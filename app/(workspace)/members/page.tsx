@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { RoleLabel, Role } from '@/types';
-import { profiles, departments, getDepartmentById } from '@/data/mock';
+import type { MemberDto } from '@/lib/api/contracts';
+import { workspaceApi } from '@/lib/api/workspace';
 import { Badge } from '@/components/ui/badge';
 
 const fadeUp = {
@@ -18,6 +19,15 @@ const roleOrder: Role[] = [Role.SECRETARY, Role.DEPUTY_SECRETARY, Role.MINISTER,
 export default function MembersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [profiles, setProfiles] = useState<MemberDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    workspaceApi.members().then((members) => { if (active) setProfiles(members); }).catch(() => { if (active) setError('成员加载失败，请稍后重试。'); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const filteredMembers = useMemo(() => {
     let result = [...profiles];
@@ -29,7 +39,7 @@ export default function MembersPage() {
       result = result.filter((p) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
     }
     return result.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
-  }, [searchQuery, roleFilter]);
+  }, [profiles, searchQuery, roleFilter]);
 
   return (
     <div className="p-6 lg:p-10 max-w-[1000px] mx-auto">
@@ -65,8 +75,12 @@ export default function MembersPage() {
 
         {/* Member List */}
         <motion.div variants={fadeUp} className="bg-white rounded-xl border border-border/60 overflow-hidden">
-          {filteredMembers.map((member) => {
-            const dept = member.departmentId ? getDepartmentById(member.departmentId) : null;
+          {loading ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">正在加载成员…</p>
+          ) : error ? (
+            <p className="py-12 text-center text-sm text-destructive">{error}</p>
+          ) : filteredMembers.map((member) => {
+            const dept = member.department;
 
             return (
               <div

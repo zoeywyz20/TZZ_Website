@@ -1,11 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Users, ArrowRight, CheckCircle2, Clock, ListTodo } from 'lucide-react';
-import { cn, getInitials } from '@/lib/utils';
-import { departments, tasks, profiles, getMembersByDepartment, getTasksByDepartment, getProfileById } from '@/data/mock';
-import { TaskStatus, RoleLabel } from '@/types';
+import { ArrowRight } from 'lucide-react';
+import type { DepartmentDto } from '@/lib/api/contracts';
+import { workspaceApi } from '@/lib/api/workspace';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 8 },
@@ -13,6 +13,16 @@ const fadeUp = {
 };
 
 export default function DepartmentsPage() {
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    workspaceApi.departments().then((items) => { if (active) setDepartments(items); }).catch(() => { if (active) setError('部门加载失败，请稍后重试。'); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
   return (
     <div className="p-6 lg:p-10 max-w-[1200px] mx-auto">
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
@@ -22,13 +32,7 @@ export default function DepartmentsPage() {
         </motion.div>
 
         <motion.div variants={fadeUp} className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {departments.map((dept) => {
-            const members = getMembersByDepartment(dept.id);
-            const deptTasks = getTasksByDepartment(dept.id);
-            const completedTasks = deptTasks.filter((t) => t.status === TaskStatus.APPROVED || t.status === TaskStatus.ARCHIVED).length;
-            const activeTasks = deptTasks.filter((t) => t.status !== TaskStatus.DRAFT && t.status !== TaskStatus.APPROVED && t.status !== TaskStatus.ARCHIVED).length;
-            const leader = dept.leaderId ? getProfileById(dept.leaderId) : null;
-
+          {loading ? <p className="text-sm text-muted-foreground">正在加载部门…</p> : error ? <p className="text-sm text-destructive">{error}</p> : departments.map((dept) => {
             return (
               <Link
                 key={dept.id}
@@ -46,34 +50,22 @@ export default function DepartmentsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3 mb-5">
                   <div className="text-center p-2 rounded-lg bg-surface">
-                    <div className="stat-number text-lg font-semibold">{members.length + 1}</div>
+                    <div className="stat-number text-lg font-semibold">{dept.memberCount}</div>
                     <div className="text-[10px] text-muted-foreground">成员</div>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-surface">
-                    <div className="stat-number text-lg font-semibold">{activeTasks}</div>
-                    <div className="text-[10px] text-muted-foreground">进行中</div>
+                    <div className="stat-number text-lg font-semibold">—</div>
+                    <div className="text-[10px] text-muted-foreground">任务待接入</div>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-surface">
-                    <div className="stat-number text-lg font-semibold">{completedTasks}</div>
-                    <div className="text-[10px] text-muted-foreground">已完成</div>
+                    <div className="stat-number text-lg font-semibold">—</div>
+                    <div className="text-[10px] text-muted-foreground">任务待接入</div>
                   </div>
                 </div>
 
                 {/* Leader + Members */}
                 <div className="flex items-center gap-2">
-                  {leader && (
-                    <div className="w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-medium" title={`部长：${leader.name}`}>
-                      {getInitials(leader.name)}
-                    </div>
-                  )}
-                  {members.slice(0, 3).map((m) => (
-                    <div key={m.id} className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-xs font-medium" title={m.name}>
-                      {getInitials(m.name)}
-                    </div>
-                  ))}
-                  {members.length > 3 && (
-                    <span className="text-xs text-muted-foreground ml-1">+{members.length - 3}</span>
-                  )}
+                  <span className="text-xs text-muted-foreground">{dept.memberCount} 名成员</span>
                 </div>
               </Link>
             );

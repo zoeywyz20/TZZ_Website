@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -8,11 +8,9 @@ import {
   Upload, FileText, AlertTriangle, MessageSquare, History,
 } from 'lucide-react';
 import { cn, formatDate, formatRelativeTime, getDeadlineStatus, formatFileSize, getInitials } from '@/lib/utils';
-import { TaskStatusLabel, TaskPriorityLabel, TaskPriority, TaskStatus, ReviewAction } from '@/types';
-import {
-  getTaskById, getProfileById, getDepartmentById, reviews as allReviews,
-  activityLogs, files as allFiles,
-} from '@/data/mock';
+import { TaskStatusLabel, TaskPriorityLabel, TaskPriority, TaskStatus } from '@/types';
+import { workspaceApi } from '@/lib/api/workspace';
+import type { TaskDto } from '@/lib/api/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -23,7 +21,16 @@ const fadeUp = {
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const task = getTaskById(id);
+  const [task, setTask] = useState<TaskDto | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    workspaceApi.task(id).then((result) => { if (active) setTask(result); }).catch(() => { if (active) setTask(null); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id]);
+
+  if (loading) return <div className="p-6 lg:p-10 text-center py-20"><p className="text-muted-foreground">正在加载任务…</p></div>;
 
   if (!task) {
     return (
@@ -34,19 +41,13 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const dept = getDepartmentById(task.departmentId);
-  const leader = getProfileById(task.leaderId);
-  const creator = getProfileById(task.creatorId);
   const deadline = getDeadlineStatus(task.finalDeadline);
-  const internalDeadline = getDeadlineStatus(task.internalDeadline);
+  const internalDeadline = task.internalDeadline ? getDeadlineStatus(task.internalDeadline) : { variant: 'default', label: '' };
   const completedDels = task.deliverables.filter((d) => d.status === 'approved').length;
   const totalDels = task.deliverables.length;
-  const taskReviews = allReviews.filter((r) => r.taskId === task.id);
-  const taskLogs = activityLogs.filter((l) => l.targetId === task.id);
-
-  const executors = task.assignees.filter((a) => a.role === 'executor').map((a) => getProfileById(a.profileId)).filter(Boolean);
-  const collaborators = task.assignees.filter((a) => a.role === 'collaborator').map((a) => getProfileById(a.profileId)).filter(Boolean);
-  const reviewers = task.assignees.filter((a) => a.role === 'reviewer').map((a) => getProfileById(a.profileId)).filter(Boolean);
+  const executors = task.assignees.filter((a) => a.role === 'executor').map((a) => a.profile);
+  const collaborators = task.assignees.filter((a) => a.role === 'collaborator').map((a) => a.profile);
+  const reviewers = task.assignees.filter((a) => a.role === 'reviewer').map((a) => a.profile);
 
   return (
     <div className="p-6 lg:p-10 max-w-[1200px] mx-auto">
@@ -144,9 +145,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
               <div className="space-y-2">
                 {task.deliverables.map((del) => {
-                  const assignee = del.assigneeId ? getProfileById(del.assigneeId) : null;
-                  const reviewer = del.reviewerId ? getProfileById(del.reviewerId) : null;
-                  const relatedFile = allFiles.find((f) => f.deliverableId === del.id);
+                  const assignee = del.assigneeId === task.leaderId ? task.leader : null;
 
                   return (
                     <div
@@ -177,22 +176,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         )}
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           {assignee && <span>负责：{assignee.name}</span>}
-                          {reviewer && (
-                            <>
-                              <span className="text-border">·</span>
-                              <span>审核：{reviewer.name}</span>
-                            </>
-                          )}
                           {del.allowedFormats && (
                             <>
                               <span className="text-border">·</span>
                               <span>{del.allowedFormats.join(' ')}</span>
-                            </>
-                          )}
-                          {relatedFile && (
-                            <>
-                              <span className="text-border">·</span>
-                              <span>V{relatedFile.currentVersion}</span>
                             </>
                           )}
                         </div>
@@ -210,38 +197,6 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </motion.section>
 
-            {/* Review History */}
-            {taskReviews.length > 0 && (
-              <motion.section variants={fadeUp}>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">审核记录</h2>
-                <div className="space-y-3">
-                  {taskReviews.map((review) => {
-                    const reviewer = getProfileById(review.reviewerId);
-                    return (
-                      <div key={review.id} className="flex gap-3 p-4 rounded-xl bg-white border border-border/60">
-                        <div className="w-8 h-8 rounded-full bg-foreground/8 flex items-center justify-center shrink-0 text-xs font-medium">
-                          {reviewer ? getInitials(reviewer.name) : '?'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium">{reviewer?.name}</span>
-                            <Badge variant={review.action === ReviewAction.APPROVE ? 'secondary' : 'destructive'} className="text-[10px] h-5">
-                              {review.action === ReviewAction.APPROVE ? '通过' : '退回修改'}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {formatRelativeTime(review.createdAt)}
-                            </span>
-                          </div>
-                          {review.comment && (
-                            <p className="text-sm text-muted-foreground">{review.comment}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.section>
-            )}
           </div>
 
           {/* Right — Info sidebar */}
@@ -250,9 +205,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               <h2 className="text-sm font-semibold">任务信息</h2>
 
               <div className="space-y-4">
-                <InfoRow label="部门" value={dept?.name || '-'} />
-                <InfoRow label="创建人" value={creator?.name || '-'} />
-                <InfoRow label="负责人" value={leader?.name || '-'} />
+                <InfoRow label="部门" value={task.department.name} />
+                <InfoRow label="创建人" value={task.creator.name} />
+                <InfoRow label="负责人" value={task.leader.name} />
 
                 <Separator className="bg-border/50" />
 
@@ -260,7 +215,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   <span className="text-xs text-muted-foreground block mb-2">执行人</span>
                   <div className="flex flex-wrap gap-1.5">
                     {executors.map((p) => (
-                      <span key={p!.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p!.name}</span>
+                      <span key={p.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p.name}</span>
                     ))}
                     {executors.length === 0 && <span className="text-xs text-muted-foreground">未指定</span>}
                   </div>
@@ -270,7 +225,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   <span className="text-xs text-muted-foreground block mb-2">协办人</span>
                   <div className="flex flex-wrap gap-1.5">
                     {collaborators.map((p) => (
-                      <span key={p!.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p!.name}</span>
+                      <span key={p.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p.name}</span>
                     ))}
                     {collaborators.length === 0 && <span className="text-xs text-muted-foreground">无</span>}
                   </div>
@@ -280,7 +235,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                   <span className="text-xs text-muted-foreground block mb-2">审核人</span>
                   <div className="flex flex-wrap gap-1.5">
                     {reviewers.map((p) => (
-                      <span key={p!.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p!.name}</span>
+                      <span key={p.id} className="text-xs px-2 py-1 rounded-md bg-muted">{p.name}</span>
                     ))}
                   </div>
                 </div>
@@ -295,7 +250,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                       internalDeadline.variant === 'danger' && 'text-destructive',
                       internalDeadline.variant === 'warning' && 'text-warning',
                     )}>
-                      {formatDate(task.internalDeadline, 'MM/dd HH:mm')}
+                      {task.internalDeadline ? formatDate(task.internalDeadline, 'MM/dd HH:mm') : '-'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
