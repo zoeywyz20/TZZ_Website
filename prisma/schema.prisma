@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  SECRETARY
+  DEPUTY_SECRETARY
+  MINISTER
+  VICE_MINISTER
+  MEMBER
+  GUEST
+}
+
+enum TaskStatus {
+  DRAFT
+  ASSIGNED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  REVISION_REQUIRED
+  APPROVED
+  ARCHIVED
+}
+
+enum TaskPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+enum Visibility {
+  ALL
+  DEPARTMENT
+  SPECIFIED
+}
+
+enum FileStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+enum ReviewAction {
+  APPROVE
+  REJECT
+}
+
+enum TaskAssigneeRole {
+  executor
+  collaborator
+  reviewer
+}
+
+enum DeliverableStatus {
+  pending
+  submitted
+  approved
+  revision_required
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  shortName   String    @map("short_name")
+  description String?
+  leaderId    String?   @unique @map("leader_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  leader  Profile?    @relation("DepartmentLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  members Profile[]   @relation("DepartmentMembers")
+  files   FileRecord[]
+  tasks   Task[]
+
+  @@map("departments")
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  avatar       String?
+  role         Role
+  phone        String?
+  studentId    String?  @unique @map("student_id")
+  departmentId String?  @map("department_id")
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department          Department?        @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  ledDepartment       Department?        @relation("DepartmentLeader")
+  createdTasks        Task[]             @relation("TaskCreator")
+  ledTasks            Task[]             @relation("TaskLeader")
+  taskAssignments     TaskAssignee[]
+  assignedDeliverables Deliverable[]     @relation("DeliverableAssignee")
+  reviewDeliverables  Deliverable[]      @relation("DeliverableReviewer")
+  uploadedFiles       FileRecord[]        @relation("FileUploader")
+  deletedFiles        FileRecord[]        @relation("FileDeleter")
+  uploadedVersions    FileVersion[]
+  submissions         Submission[]
+  reviews             ReviewRecord[]
+
+  @@index([departmentId])
+  @@map("profiles")
+}
+
+model Task {
+  id               String       @id @default(uuid())
+  title            String
+  description      String?
+  source           String?
+  departmentId     String       @map("department_id")
+  creatorId        String       @map("creator_id")
+  leaderId         String       @map("leader_id")
+  status           TaskStatus   @default(DRAFT)
+  priority         TaskPriority @default(NORMAL)
+  visibility       Visibility   @default(ALL)
+  internalDeadline DateTime?    @map("internal_deadline")
+  finalDeadline    DateTime     @map("final_deadline")
+  tags             String[]     @default([])
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  department  Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  creator     Profile       @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  leader      Profile       @relation("TaskLeader", fields: [leaderId], references: [id], onDelete: Restrict)
+  assignees   TaskAssignee[]
+  deliverables Deliverable[]
+  files       FileRecord[]
+  submissions Submission[]
+  reviews     ReviewRecord[]
+
+  @@index([departmentId])
+  @@index([creatorId])
+  @@index([leaderId])
+  @@index([status, finalDeadline])
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  id        String           @id @default(uuid())
+  taskId    String           @map("task_id")
+  profileId String           @map("profile_id")
+  role      TaskAssigneeRole
+
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, profileId, role])
+  @@index([profileId])
+  @@map("task_assignees")
+}
+
+model Deliverable {
+  id             String            @id @default(uuid())
+  taskId         String            @map("task_id")
+  name           String
+  description    String?
+  required       Boolean           @default(true)
+  allowedFormats String[]          @default([]) @map("allowed_formats")
+  maxFiles       Int?              @map("max_files")
+  maxFileSize    BigInt?           @map("max_file_size")
+  templateFileId String?           @map("template_file_id")
+  assigneeId     String?           @map("assignee_id")
+  reviewerId     String?           @map("reviewer_id")
+  status         DeliverableStatus @default(pending)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee    Profile?       @relation("DeliverableAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reviewer    Profile?       @relation("DeliverableReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  files       FileRecord[]
+  submissions Submission[]
+  reviews     ReviewRecord[]
+
+  @@index([taskId])
+  @@index([assigneeId])
+  @@index([reviewerId])
+  @@map("deliverables")
+}
+
+model FileRecord {
+  id               String     @id @default(uuid())
+  originalFilename String     @map("original_filename")
+  storageKey       String     @unique @map("storage_key")
+  mimeType         String     @map("mime_type")
+  size             BigInt
+  hash             String?
+  uploaderId       String     @map("uploader_id")
+  taskId           String?    @map("task_id")
+  deliverableId    String?    @map("deliverable_id")
+  departmentId     String?    @map("department_id")
+  status           FileStatus @default(DRAFT)
+  currentVersion   Int        @default(1) @map("current_version")
+  tags             String[]   @default([])
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  deletedAt        DateTime?  @map("deleted_at")
+  deletedBy        String?    @map("deleted_by")
+
+  uploader    Profile      @relation("FileUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
+  deleter     Profile?     @relation("FileDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  deliverable Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  versions    FileVersion[]
+  submissions Submission[]
+  reviews     ReviewRecord[]
+
+  @@index([uploaderId])
+  @@index([taskId])
+  @@index([deliverableId])
+  @@index([departmentId])
+  @@index([status, updatedAt])
+  @@map("files")
+}
+
+model FileVersion {
+  id            String   @id @default(uuid())
+  fileId        String   @map("file_id")
+  versionNumber Int      @map("version_number")
+  storageKey    String   @unique @map("storage_key")
+  size          BigInt
+  uploaderId    String   @map("uploader_id")
+  changeNote    String?  @map("change_note")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  file     FileRecord @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploader Profile    @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@unique([fileId, versionNumber])
+  @@index([uploaderId])
+  @@map("file_versions")
+}
+
+model Submission {
+  id            String           @id @default(uuid())
+  deliverableId String           @map("deliverable_id")
+  taskId        String           @map("task_id")
+  submitterId   String           @map("submitter_id")
+  fileId        String           @map("file_id")
+  version       Int
+  changeNote    String?          @map("change_note")
+  status        SubmissionStatus @default(pending)
+  submittedAt   DateTime         @default(now()) @map("submitted_at")
+
+  deliverable Deliverable  @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  task        Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  submitter   Profile      @relation(fields: [submitterId], references: [id], onDelete: Restrict)
+  file        FileRecord   @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  reviews     ReviewRecord[]
+
+  @@index([deliverableId])
+  @@index([taskId])
+  @@index([submitterId])
+  @@index([fileId])
+  @@map("submissions")
+}
+
+model ReviewRecord {
+  id            String       @id @default(uuid())
+  taskId        String?      @map("task_id")
+  deliverableId String?      @map("deliverable_id")
+  submissionId  String?      @map("submission_id")
+  fileId        String?      @map("file_id")
+  reviewerId    String       @map("reviewer_id")
+  action        ReviewAction
+  comment       String?
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  deliverable Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  submission  Submission?  @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  file        FileRecord?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  reviewer    Profile      @relation(fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([deliverableId])
+  @@index([submissionId])
+  @@index([fileId])
+  @@index([reviewerId])
+  @@map("review_records")
+}
