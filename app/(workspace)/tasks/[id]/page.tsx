@@ -145,7 +145,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
               <div className="space-y-2">
                 {task.deliverables.map((del) => {
-                  const assignee = del.assigneeId === task.leaderId ? task.leader : null;
+                  const assignee = del.assignee;
+                  const reviewer = del.reviewer;
 
                   return (
                     <div
@@ -176,6 +177,12 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         )}
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           {assignee && <span>负责：{assignee.name}</span>}
+                          {reviewer && (
+                            <>
+                              <span className="text-border">·</span>
+                              <span>审核：{reviewer.name}</span>
+                            </>
+                          )}
                           {del.allowedFormats && (
                             <>
                               <span className="text-border">·</span>

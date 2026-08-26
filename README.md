@@ -12,7 +12,7 @@
 |---|---|
 | **Next.js 16** | App Router, Route Handlers, React Server Components |
 | **TypeScript** | 严格模式 |
-| **PostgreSQL + Prisma ORM** | 服务端数据持久化（逐模块接入中） |
+| **PostgreSQL + Prisma ORM** | 服务端数据持久化 |
 | **Tailwind CSS v4** | 原子化 CSS |
 | **shadcn/ui** | 基础组件，二次设计 |
 | **Framer Motion** | 克制微动效 |
@@ -44,12 +44,12 @@ components/
   ui/                 # shadcn/ui 组件
   layout/             # Sidebar, Header, CommandPalette
 data/
-  mock.ts             # Mock 数据（成员、部门、任务、文件等）
+  mock.ts             # 尚未接入模块使用的展示 Mock 数据
 hooks/
   use-auth.tsx        # 认证 Context
 lib/
   db.ts               # Prisma Client 服务端单例
-  api/                 # API 通用响应工具
+  api/                 # API DTO、客户端与通用响应工具
   utils.ts            # 工具函数
   permissions.ts      # RBAC 权限层
   storage.ts          # Storage Adapter 抽象
@@ -59,20 +59,26 @@ prisma/
   schema.prisma       # PostgreSQL 数据模型
 ```
 
-## 如何运行
+## 当前接入状态
+
+已完成 PostgreSQL / Prisma 基础、正式 migration、开发 seed、数据库 Session、HttpOnly Cookie 登录、RBAC，以及 Departments、Members、Tasks API。`/tasks`、`/tasks/new`、`/tasks/[id]` 已连接真实 API。
+
+仍使用 Mock 或尚未接入真实后端的模块包括：Dashboard 部分统计、Files、Reviews、Calendar、Notifications、Templates 和 Settings 部分功能。
+
+不使用 Supabase 或阿里云 OSS。文件模块后续将使用 Rocky Linux 本地文件系统，`FILE_STORAGE_ROOT=/data/tzz/files`。
+
+## 本地开发
 
 ```bash
 # 1. 安装依赖
 npm install
 
-# 2. 启动开发服务器
+# 2. 配置数据库环境变量后启动开发服务器
 npm run dev
 
 # 3. 打开浏览器
 open http://localhost:3000
 ```
-
-默认以 Mock 模式运行，无需配置数据库或对象存储。
 
 ## 环境变量
 
@@ -82,40 +88,31 @@ open http://localhost:3000
 cp .env.example .env.local
 ```
 
-开发模式下不需要填写真实值。
-
-## Mock 模式
-
-当前所有数据来自 `data/mock.ts`，包括：
-
-- 9 位真实角色成员
-- 3 个部门
-- 8 个真实任务（含交付清单）
-- 文件记录、审核历史
-- 通知、活动日志
-- 模板数据
-
-可直接 `npm run dev` 完整体验。
-
-## PostgreSQL / Prisma
-
-将 `.env.example` 复制为 `.env.local`，并只在服务端配置：
+将 `.env.example` 复制为 `.env.local`，并只在服务端配置。真实 `.env.local` 不允许提交到 Git：
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE"
+SEED_DEFAULT_PASSWORD="仅用于首次 seed 的强密码"
 FILE_STORAGE_ROOT=/data/tzz/files
 ```
 
-初始化开发数据库并验证连接：
+Seed 中的邮箱仅用于开发和首次服务器测试，正式上线前必须替换为真实确认过的账号。`SEED_DEFAULT_PASSWORD` 不会写入 Git，且测试密码必须在上线前修改。重复执行 seed 会更新组织结构，但不会重置既有用户密码。
+
+## Rocky Linux 首次数据库初始化
+
+应用代码准备好且 `.env.local` 已配置后，运行：
 
 ```bash
+npm install
 npm run db:validate
-npm run db:migrate:dev -- --name init
-npm run dev
-curl http://localhost:3000/api/health
+npm run db:generate
+npm run db:migrate:deploy
+npm run db:seed
+npm run build
+npm run start
 ```
 
-当前 API 基础设施已经接入 PostgreSQL；现有页面仍按部门、成员、文件、任务的顺序逐步从 `data/mock.ts` 迁移。
+开发测试使用 `npm run dev`。在没有真实 PostgreSQL 的本地环境中，不要把 migration 或 seed 当作已验证成功。
 
 ## 文件存储规划
 

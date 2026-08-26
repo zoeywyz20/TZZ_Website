@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { TaskPriority, TaskPriorityLabel, Visibility, VisibilityLabel } from '@/types';
+import { RoleLabel, TaskPriority, TaskPriorityLabel, Visibility, VisibilityLabel } from '@/types';
 import type { DepartmentDto, MemberDto } from '@/lib/api/contracts';
 import { workspaceApi } from '@/lib/api/workspace';
 import { Separator } from '@/components/ui/separator';
@@ -189,7 +189,7 @@ export default function CreateTaskPage() {
                   >
                     <option value="">选择负责人</option>
                     {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id}>{p.name}（{RoleLabel[p.role]} · {p.department?.shortName ?? '未分配部门'}）</option>
                     ))}
                   </select>
                 </FormField>

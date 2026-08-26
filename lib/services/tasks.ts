@@ -12,12 +12,16 @@ import { Role } from '@/types';
 const taskInclude = {
   department: true, creator: true, leader: true,
   assignees: { include: { profile: true } },
-  deliverables: true,
+  deliverables: { include: { assignee: true, reviewer: true } },
 } as const;
 
 type DbTask = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
 
 function date(value: Date | null) { return value?.toISOString(); }
+
+function toMemberSummary(profile: { id: string; name: string; avatar: string | null; role: string } | null) {
+  return profile ? { id: profile.id, name: profile.name, avatar: profile.avatar ?? undefined, role: profile.role as unknown as Role } : undefined;
+}
 
 export function toTaskDto(task: DbTask): TaskDto {
   return {
@@ -26,10 +30,10 @@ export function toTaskDto(task: DbTask): TaskDto {
     status: task.status, priority: task.priority, visibility: task.visibility, internalDeadline: date(task.internalDeadline),
     finalDeadline: task.finalDeadline.toISOString(), tags: task.tags,
     department: { id: task.department.id, name: task.department.name, shortName: task.department.shortName },
-    creator: { id: task.creator.id, name: task.creator.name, avatar: task.creator.avatar ?? undefined, role: task.creator.role as unknown as Role },
-    leader: { id: task.leader.id, name: task.leader.name, avatar: task.leader.avatar ?? undefined, role: task.leader.role as unknown as Role },
-    assignees: task.assignees.map((item) => ({ id: item.id, profileId: item.profileId, role: item.role, profile: { id: item.profile.id, name: item.profile.name, avatar: item.profile.avatar ?? undefined, role: item.profile.role as unknown as Role } })),
-    deliverables: task.deliverables.map((item) => ({ id: item.id, name: item.name, description: item.description ?? undefined, required: item.required, allowedFormats: item.allowedFormats, status: item.status, assigneeId: item.assigneeId ?? undefined, reviewerId: item.reviewerId ?? undefined, createdAt: item.createdAt.toISOString() })),
+    creator: toMemberSummary(task.creator)!,
+    leader: toMemberSummary(task.leader)!,
+    assignees: task.assignees.map((item) => ({ id: item.id, profileId: item.profileId, role: item.role, profile: toMemberSummary(item.profile)! })),
+    deliverables: task.deliverables.map((item) => ({ id: item.id, name: item.name, description: item.description ?? undefined, required: item.required, allowedFormats: item.allowedFormats, status: item.status, assigneeId: item.assigneeId ?? undefined, reviewerId: item.reviewerId ?? undefined, assignee: toMemberSummary(item.assignee), reviewer: toMemberSummary(item.reviewer), createdAt: item.createdAt.toISOString() })),
     createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(),
   };
 }

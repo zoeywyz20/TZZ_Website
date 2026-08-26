@@ -24,7 +24,12 @@ export interface DepartmentDto {
   createdAt: string;
 }
 
-export interface MemberDto extends AuthUser {
+export interface MemberDto {
+  id: string;
+  name: string;
+  avatar?: string;
+  role: Role;
+  departmentId?: string;
   department?: Pick<DepartmentDto, 'id' | 'name' | 'shortName'>;
 }
 
@@ -46,7 +51,7 @@ export interface TaskDto {
   creator: Pick<MemberDto, 'id' | 'name' | 'avatar' | 'role'>;
   leader: Pick<MemberDto, 'id' | 'name' | 'avatar' | 'role'>;
   assignees: Array<{ id: string; profileId: string; role: 'executor' | 'collaborator' | 'reviewer'; profile: Pick<MemberDto, 'id' | 'name' | 'avatar' | 'role'> }>;
-  deliverables: Array<{ id: string; name: string; description?: string; required: boolean; allowedFormats: string[]; status: 'pending' | 'submitted' | 'approved' | 'revision_required'; assigneeId?: string; reviewerId?: string; createdAt: string }>;
+  deliverables: Array<{ id: string; name: string; description?: string; required: boolean; allowedFormats: string[]; status: 'pending' | 'submitted' | 'approved' | 'revision_required'; assigneeId?: string; reviewerId?: string; assignee?: Pick<MemberDto, 'id' | 'name' | 'avatar' | 'role'>; reviewer?: Pick<MemberDto, 'id' | 'name' | 'avatar' | 'role'>; createdAt: string }>;
   createdAt: string;
   updatedAt: string;
 }

@@ -36,7 +36,7 @@ export default function MembersPage() {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter((p) => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q));
+      result = result.filter((p) => p.name.toLowerCase().includes(q));
     }
     return result.sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
   }, [profiles, searchQuery, roleFilter]);
@@ -102,18 +102,9 @@ export default function MembersPage() {
                     <Badge variant="secondary" className="text-[10px] h-5">{RoleLabel[member.role]}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                    <span>{member.email}</span>
-                    {dept && (
-                      <>
-                        <span className="text-border">·</span>
-                        <span>{dept.name}</span>
-                      </>
-                    )}
+                    <span>{dept?.name ?? '未分配部门'}</span>
                   </div>
                 </div>
-                <span className="text-xs text-muted-foreground font-tabular shrink-0">
-                  {member.studentId}
-                </span>
               </div>
             );
           })}
