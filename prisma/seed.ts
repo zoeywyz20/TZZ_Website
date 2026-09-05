@@ -17,7 +17,7 @@ const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: database
 
 const departments = [
   { id: 'dept-org', name: '组织建设部', shortName: '组建部', description: '负责团组织建设、团员管理、组织关系等工作', leaderId: 'user-bjr' },
-  { id: 'dept-theory', name: '理论学习部', shortName: '理学部', description: '负责理论学习、主题团日、青年大学习等工作', leaderId: 'user-djy' },
+  { id: 'dept-theory', name: '理论学习部', shortName: '理学部', description: '负责理论学习、主题团日、青年大学习等工作', leaderId: 'user-dcy' },
   { id: 'dept-practice', name: '社会实践部', shortName: '实践部', description: '负责社会实践、志愿服务、暑期实践等工作', leaderId: 'user-myj' },
 ] as const;
 
@@ -28,7 +28,7 @@ const profiles = [
   { id: 'user-bjr', name: '鲍君睿', email: 'bjr@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-org', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-qhh', name: '覃欢欢', email: 'qhh@example.local', role: Role.VICE_MINISTER, phone: null, studentId: null, departmentId: 'dept-org', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-dyx', name: '丁怡萱', email: 'dyx@example.local', role: Role.DEPUTY_SECRETARY, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-01T00:00:00Z') },
-  { id: 'user-djy', name: '邓陈彦', email: 'djy@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-01T00:00:00Z') },
+  { id: 'user-dcy', name: '邓陈彦', email: 'djy@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-wj', name: '王娟', email: 'wj@example.local', role: Role.VICE_MINISTER, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-15T00:00:00Z') },
   { id: 'user-zxq', name: '曾雪琴', email: 'zxq@example.local', role: Role.DEPUTY_SECRETARY, phone: null, studentId: null, departmentId: 'dept-practice', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-myj', name: '马英杰', email: 'myj@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-practice', joinedAt: new Date('2025-09-15T00:00:00Z') },
