@@ -1,0 +1,10 @@
+[Unit]
+Description=Create and verify a local TZZ PostgreSQL dump
+Requires=tzz-postgresql.service
+After=tzz-postgresql.service
+ConditionPathIsDirectory=/home/wyz/tzz-backups/postgres
+
+[Service]
+Type=oneshot
+ExecStart=/home/wyz/bin/tzz-postgres-backup
+UMask=0077

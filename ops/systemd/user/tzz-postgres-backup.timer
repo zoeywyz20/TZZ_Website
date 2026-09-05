@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily TZZ PostgreSQL local backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=15m
+AccuracySec=1m
+Unit=tzz-postgres-backup.service
+
+[Install]
+WantedBy=timers.target

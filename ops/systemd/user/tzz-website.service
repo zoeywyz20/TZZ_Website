@@ -1,0 +1,20 @@
+[Unit]
+Description=TZZ Website (draft; release not deployed)
+Requires=tzz-postgresql.service
+After=tzz-postgresql.service
+RequiresMountsFor=/home/wyz/tzz-data
+ConditionPathIsDirectory=/home/wyz/tzz-data
+ConditionPathIsDirectory=/home/wyz/tzz-runtime/current
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wyz/tzz-runtime/current
+EnvironmentFile=/home/wyz/.config/tzz/tzz-website.env
+ExecStart=/home/wyz/miniconda3/bin/npm run start
+Restart=on-failure
+RestartSec=5
+UMask=0007
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

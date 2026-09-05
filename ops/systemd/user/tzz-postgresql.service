@@ -1,0 +1,19 @@
+[Unit]
+Description=TZZ PostgreSQL 17.11
+RequiresMountsFor=/home/wyz/tzz/postgres/data
+ConditionPathIsDirectory=/home/wyz/tzz/postgres/data
+
+[Service]
+Type=simple
+Environment=PATH=/home/wyz/miniconda3/envs/tzz_db/bin:/usr/bin:/bin
+ExecStart=/home/wyz/miniconda3/envs/tzz_db/bin/postgres -D /home/wyz/tzz/postgres/data
+ExecReload=/home/wyz/miniconda3/envs/tzz_db/bin/pg_ctl -D /home/wyz/tzz/postgres/data reload
+ExecStop=/home/wyz/miniconda3/envs/tzz_db/bin/pg_ctl -D /home/wyz/tzz/postgres/data -m fast -w -t 300 stop
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=310
+KillMode=mixed
+UMask=0077
+
+[Install]
+WantedBy=default.target

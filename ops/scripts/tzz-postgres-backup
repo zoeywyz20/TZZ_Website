@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+umask 077
+
+tzz_backup_dir=/home/wyz/tzz-backups/postgres
+tzz_pg_dump=/home/wyz/miniconda3/envs/tzz_db/bin/pg_dump
+tzz_pg_restore=/home/wyz/miniconda3/envs/tzz_db/bin/pg_restore
+tzz_stamp=$(date +%Y%m%d-%H%M%S)
+tzz_output="${tzz_backup_dir}/tzz_workspace-${tzz_stamp}.dump"
+tzz_partial="${tzz_output}.partial"
+
+cleanup_partial() {
+    if [[ -f "$tzz_partial" ]]; then
+        rm -f -- "$tzz_partial"
+    fi
+}
+trap cleanup_partial EXIT HUP INT TERM
+
+[[ -d "$tzz_backup_dir" ]]
+[[ ! -e "$tzz_output" ]]
+[[ ! -e "$tzz_partial" ]]
+
+"$tzz_pg_dump" \
+    --dbname=tzz_workspace \
+    --format=custom \
+    --no-password \
+    --file="$tzz_partial"
+
+"$tzz_pg_restore" --list "$tzz_partial" >/dev/null
+chmod 0600 "$tzz_partial"
+mv -- "$tzz_partial" "$tzz_output"
+trap - EXIT HUP INT TERM
+
+printf 'backup_created=%s\n' "$tzz_output"

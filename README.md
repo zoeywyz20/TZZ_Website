@@ -57,6 +57,12 @@ types/
   index.ts            # TypeScript 类型定义
 prisma/
   schema.prisma       # PostgreSQL 数据模型
+docs/
+  server-infrastructure-2026-09-05.md  # Rocky 服务器实测状态
+ops/
+  systemd/user/       # 用户级 service/timer 模板
+  scripts/            # 无密码 PostgreSQL 本地备份脚本
+  ADMIN_TODO.md       # root 管理员最小操作清单
 ```
 
 ## 当前接入状态
@@ -65,7 +71,7 @@ prisma/
 
 仍使用 Mock 或尚未接入真实后端的模块包括：Dashboard 部分统计、Files、Reviews、Calendar、Notifications、Templates 和 Settings 部分功能。
 
-不使用 Supabase 或阿里云 OSS。文件模块后续将使用 Rocky Linux 本地文件系统，`FILE_STORAGE_ROOT=/data/tzz/files`。
+不使用 Supabase 或阿里云 OSS。文件模块将使用 Rocky Linux 本地文件系统；服务器存储只能位于 `/home/wyz`，当前用户级生产根目录为 `FILE_STORAGE_ROOT=/home/wyz/tzz-data/blobs`。未来管理员如建立安全 bind mount，可将应用路径切换为 `/srv/tzz-data/blobs`，但物理数据仍保留在 `/home/wyz/tzz-data`。
 
 ## 本地开发
 
@@ -93,7 +99,14 @@ cp .env.example .env.local
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE"
 SEED_DEFAULT_PASSWORD="仅用于首次 seed 的强密码"
-FILE_STORAGE_ROOT=/data/tzz/files
+NODE_ENV=development
+HOSTNAME=127.0.0.1
+PORT=3000
+FILE_STORAGE_ROOT=/home/wyz/tzz-data/blobs
+UPLOAD_TMP_ROOT=/home/wyz/tzz-data/tmp
+QUARANTINE_ROOT=/home/wyz/tzz-data/quarantine
+EXPORT_ROOT=/home/wyz/tzz-data/exports
+THUMBNAIL_ROOT=/home/wyz/tzz-data/thumbnails
 ```
 
 Seed 中的邮箱仅用于开发和首次服务器测试，正式上线前必须替换为真实确认过的账号。`SEED_DEFAULT_PASSWORD` 不会写入 Git，且测试密码必须在上线前修改。重复执行 seed 会更新组织结构，但不会重置既有用户密码。
@@ -116,7 +129,9 @@ npm run start
 
 ## 文件存储规划
 
-文件本体不会写入 PostgreSQL。生产环境使用 `FILE_STORAGE_ROOT` 指向 Rocky Linux 文件系统，数据库只保存文件元数据和服务端存储键。现有 `lib/storage.ts` 仍是前端演示适配器，将在文件模块接入时替换为仅服务端可用的本地文件存储实现。
+文件本体不会写入 PostgreSQL。生产环境使用五个独立根目录分别承载正式 blob、上传临时文件、隔离区、导出文件和缩略图。数据库只保存文件元数据和相对 `storageKey`，例如 `ab/cd/UUID.ext`；绝对路径、空路径段、`.` 和 `..` 均非法。应用先验证 `storageKey`，再与 `FILE_STORAGE_ROOT` 组合实际路径。
+
+现有 `lib/storage.ts` 仍是前端演示适配器，将在文件模块接入时替换为仅服务端可用的本地文件存储实现。开发阶段可以使用 Node 流式响应；生产下载必须经过 API 鉴权和 Nginx `X-Accel-Redirect`，blob 目录不得作为公开静态目录。
 
 已有的存储抽象接口为：
 
@@ -128,6 +143,14 @@ interface StorageAdapter {
   createMultipartUpload(key, file, options)
 }
 ```
+
+## 服务器基础设施记录
+
+- [Rocky Linux 实测状态](docs/server-infrastructure-2026-09-05.md)
+- [用户级运维模板](ops/README.md)
+- [管理员最小操作清单](ops/ADMIN_TODO.md)
+
+仓库只记录模板和验证结果。真实 `.env.local`、生产环境文件、PostgreSQL data、dump、日志和上传文件均不得提交。
 
 ## 权限模型
 
