@@ -15,6 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "verify:storage": "tsx scripts/verify-file-storage.ts",
     "verify:folders": "tsx scripts/verify-folder-import-design.ts",
+    "verify:files:integration": "tsx scripts/verify-files-integration.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
