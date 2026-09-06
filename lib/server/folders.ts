@@ -4,7 +4,8 @@ import type { AuthUser } from '@/lib/api/contracts';
 import { getDb } from '@/lib/db';
 import { Role } from '@/types';
 
-type FolderInput = { name: string; parentId?: string | null; departmentId?: string | null };
+type CreateFolderInput = { name: string; parentId?: string | null; departmentId?: string | null };
+type UpdateFolderInput = { name?: string; parentId?: string | null; departmentId?: string | null };
 
 export function canReadFolder(user: AuthUser, folder: { departmentId: string | null }) {
   if (user.role === Role.GUEST) return false;
@@ -35,20 +36,22 @@ export async function listFolders(user: AuthUser, filters: { parentId?: string |
   }));
 }
 
-export async function createFolder(user: AuthUser, input: FolderInput) {
+export async function createFolder(user: AuthUser, input: CreateFolderInput) {
   const context = await folderContext(user, input);
   return getDb().folder.create({ data: { name: normalizedName(input.name), parentId: input.parentId ?? null, departmentId: context.departmentId } });
 }
 
-export async function updateFolder(user: AuthUser, id: string, input: FolderInput) {
+export async function updateFolder(user: AuthUser, id: string, input: UpdateFolderInput) {
   const current = await getDb().folder.findUnique({ where: { id } });
   if (!current || !canManageFolder(user, current)) throw new Error('FOLDER_FORBIDDEN');
   if (input.parentId === id) throw new Error('FOLDER_CYCLE');
   if (input.parentId !== undefined && input.parentId !== current.parentId) {
     await assertNotDescendant(id, input.parentId);
   }
-  const context = await folderContext(user, { ...input, departmentId: input.departmentId ?? current.departmentId });
-  return getDb().folder.update({ where: { id }, data: { name: normalizedName(input.name), parentId: input.parentId ?? current.parentId, departmentId: context.departmentId } });
+  const parentId = input.parentId === undefined ? current.parentId : input.parentId;
+  const departmentId = input.departmentId === undefined ? current.departmentId : input.departmentId;
+  const context = await folderContext(user, { parentId, departmentId });
+  return getDb().folder.update({ where: { id }, data: { ...(input.name !== undefined ? { name: normalizedName(input.name) } : {}), parentId, departmentId: context.departmentId } });
 }
 
 export async function deleteFolder(user: AuthUser, id: string) {
@@ -58,7 +61,7 @@ export async function deleteFolder(user: AuthUser, id: string) {
   await getDb().folder.delete({ where: { id } });
 }
 
-async function folderContext(user: AuthUser, input: FolderInput) {
+async function folderContext(user: AuthUser, input: { parentId?: string | null; departmentId?: string | null }) {
   const isAdmin = [Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY].includes(user.role);
   const parent = input.parentId ? await getDb().folder.findUnique({ where: { id: input.parentId } }) : null;
   if (input.parentId && !parent) throw new Error('FOLDER_NOT_FOUND');
