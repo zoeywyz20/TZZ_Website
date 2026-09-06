@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { ChangeEvent, use, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -13,6 +13,7 @@ import { workspaceApi } from '@/lib/api/workspace';
 import type { TaskDto } from '@/lib/api/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 8 },
@@ -23,6 +24,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const [task, setTask] = useState<TaskDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadTarget, setUploadTarget] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -48,9 +52,21 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const executors = task.assignees.filter((a) => a.role === 'executor').map((a) => a.profile);
   const collaborators = task.assignees.filter((a) => a.role === 'collaborator').map((a) => a.profile);
   const reviewers = task.assignees.filter((a) => a.role === 'reviewer').map((a) => a.profile);
+  const chooseUpload = (deliverableId: string | null = null) => { setUploadTarget(deliverableId); fileInput.current?.click(); };
+  const upload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    const request = new XMLHttpRequest(); request.open('POST', '/api/files/upload');
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream'); request.setRequestHeader('X-File-Name', encodeURIComponent(file.name)); request.setRequestHeader('X-Task-Id', task.id);
+    if (uploadTarget) request.setRequestHeader('X-Deliverable-Id', uploadTarget);
+    request.onload = () => { setUploading(false); try { const payload = JSON.parse(request.responseText) as { success?: boolean; error?: { message?: string } }; if (request.status >= 200 && request.status < 300 && payload.success) toast.success(uploadTarget ? '材料已提交，等待审核。' : '任务材料已上传。'); else toast.error(payload.error?.message ?? '文件上传失败。'); } catch { toast.error('文件上传失败。'); } };
+    request.onerror = () => { setUploading(false); toast.error('网络错误，文件未上传。'); }; request.send(file);
+  };
 
   return (
     <div className="p-6 lg:p-10 max-w-[1200px] mx-auto">
+      <input ref={fileInput} type="file" className="hidden" onChange={upload} />
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
         {/* Back */}
         <motion.div variants={fadeUp}>
@@ -85,7 +101,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             {/* Action buttons */}
             <div className="flex gap-2 shrink-0">
               {task.status === TaskStatus.IN_PROGRESS && (
-                <button className="h-9 px-4 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors inline-flex items-center gap-2">
+                <button onClick={() => chooseUpload()} disabled={uploading} className="h-9 px-4 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors inline-flex items-center gap-2 disabled:opacity-50">
                   <Upload className="w-4 h-4" />
                   上传材料
                 </button>
@@ -194,7 +210,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
                       {/* Upload button for pending items */}
                       {del.status === 'pending' && (
-                        <button className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-8 px-3 rounded-lg border border-border text-xs hover:bg-muted">
+                        <button onClick={() => chooseUpload(del.id)} disabled={uploading} className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-8 px-3 rounded-lg border border-border text-xs hover:bg-muted disabled:opacity-50">
                           上传
                         </button>
                       )}

@@ -20,8 +20,9 @@ const listSchema = z.object({
 const uploadHeaderSchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().trim().min(1).max(255).default('application/octet-stream'),
-  taskId: z.string().uuid().optional(),
-  deliverableId: z.string().uuid().optional(),
+  // Task IDs are strings in the data model, including development fixtures.
+  taskId: z.string().trim().min(1).max(100).optional(),
+  deliverableId: z.string().trim().min(1).max(100).optional(),
   departmentId: z.string().uuid().optional(),
   folderId: z.string().uuid().optional(),
   visibility: z.nativeEnum(Visibility).default(Visibility.DEPARTMENT),

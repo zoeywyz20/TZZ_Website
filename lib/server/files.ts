@@ -97,6 +97,10 @@ export async function uploadFile(user: AuthUser, request: Request, input: Upload
         },
       });
       await tx.fileVersion.create({ data: { fileId: file.id, versionNumber: 1, storageKey: staged.storageKey, size: staged.size, uploaderId: user.id } });
+      if (target.taskId && target.deliverableId) {
+        await tx.submission.create({ data: { taskId: target.taskId, deliverableId: target.deliverableId, submitterId: user.id, fileId: file.id, version: 1 } });
+        await tx.deliverable.updateMany({ where: { id: target.deliverableId, status: 'pending' }, data: { status: 'submitted' } });
+      }
       return file;
     });
     return created;
