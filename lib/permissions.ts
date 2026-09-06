@@ -52,7 +52,7 @@ const permissionMatrix: Record<Role, Set<Action>> = {
   [Role.DEPUTY_SECRETARY]: new Set<Action>([
     'task:create', 'task:edit', 'task:assign', 'task:view_all',
     'task:view_department', 'task:view_own',
-    'file:upload', 'file:download', 'file:view_all', 'file:view_department',
+    'file:upload', 'file:download', 'file:delete', 'file:view_all', 'file:view_department',
     'review:approve', 'review:reject',
     'member:view',
     'department:view',
@@ -62,7 +62,7 @@ const permissionMatrix: Record<Role, Set<Action>> = {
   [Role.MINISTER]: new Set<Action>([
     'task:create', 'task:edit', 'task:assign',
     'task:view_department', 'task:view_own',
-    'file:upload', 'file:download', 'file:view_department',
+    'file:upload', 'file:download', 'file:delete', 'file:view_department',
     'review:approve', 'review:reject',
     'member:view',
     'department:view',
@@ -71,22 +71,19 @@ const permissionMatrix: Record<Role, Set<Action>> = {
   ]),
   [Role.VICE_MINISTER]: new Set<Action>([
     'task:view_department', 'task:view_own',
-    'file:upload', 'file:download', 'file:view_department',
+    'file:upload', 'file:download', 'file:delete', 'file:view_department',
     'member:view',
     'department:view',
     'template:view',
   ]),
   [Role.MEMBER]: new Set<Action>([
     'task:view_own',
-    'file:upload', 'file:download',
+    'file:upload', 'file:download', 'file:delete',
     'member:view',
     'department:view',
     'template:view',
   ]),
-  [Role.GUEST]: new Set<Action>([
-    'file:upload',
-    'template:view',
-  ]),
+  [Role.GUEST]: new Set<Action>(['template:view']),
 };
 
 // ---------- Permission Check ----------

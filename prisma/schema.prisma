@@ -83,6 +83,7 @@ model Department {
   leader  Profile?    @relation("DepartmentLeader", fields: [leaderId], references: [id], onDelete: SetNull)
   members Profile[]   @relation("DepartmentMembers")
   files   FileRecord[]
+  folders Folder[]
   tasks   Task[]
 
   @@map("departments")
@@ -221,6 +222,8 @@ model FileRecord {
   taskId           String?    @map("task_id")
   deliverableId    String?    @map("deliverable_id")
   departmentId     String?    @map("department_id")
+  folderId         String?    @map("folder_id")
+  visibility       Visibility @default(DEPARTMENT)
   status           FileStatus @default(DRAFT)
   currentVersion   Int        @default(1) @map("current_version")
   tags             String[]   @default([])
@@ -234,6 +237,7 @@ model FileRecord {
   task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
   deliverable Deliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
   department  Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  folder      Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
   versions    FileVersion[]
   submissions Submission[]
   reviews     ReviewRecord[]
@@ -242,8 +246,29 @@ model FileRecord {
   @@index([taskId])
   @@index([deliverableId])
   @@index([departmentId])
+  @@index([folderId])
+  @@index([visibility])
   @@index([status, updatedAt])
   @@map("files")
+}
+
+model Folder {
+  id           String   @id @default(uuid())
+  name         String
+  parentId     String?  @map("parent_id")
+  departmentId String?  @map("department_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  parent     Folder?      @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Folder[]     @relation("FolderTree")
+  department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  files      FileRecord[]
+
+  @@index([parentId])
+  @@index([departmentId])
+  @@unique([parentId, name])
+  @@map("folders")
 }
 
 model FileVersion {

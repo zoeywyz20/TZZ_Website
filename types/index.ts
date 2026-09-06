@@ -206,6 +206,8 @@ export interface FileRecord {
   taskId?: string;
   deliverableId?: string;
   departmentId?: string;
+  folderId?: string;
+  visibility?: Visibility;
   status: FileStatus;
   currentVersion: number;
   tags: string[];
@@ -224,6 +226,15 @@ export interface FileVersion {
   uploaderId: string;
   changeNote?: string;
   createdAt: string;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  parentId?: string;
+  departmentId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ReviewRecord {

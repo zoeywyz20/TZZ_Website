@@ -1,17 +1,23 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Grid3X3, List, FileText, FileSpreadsheet, Archive, Image, Filter, Download } from 'lucide-react';
-import { cn, formatFileSize, formatRelativeTime, formatDate } from '@/lib/utils';
-import { FileStatus, FileStatusLabel } from '@/types';
-import { files, departments, getProfileById, getDepartmentById } from '@/data/mock';
+import { Archive, Download, FileSpreadsheet, FileText, Grid3X3, Image, List, Search, Trash2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { MAX_FILE_SIZE_BYTES, isAllowedUploadSize } from '@/lib/storage';
+import { cn, formatFileSize, formatRelativeTime } from '@/lib/utils';
+import { FileStatus, FileStatusLabel } from '@/types';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+type Department = { id: string; name: string; shortName: string };
+type ApiFile = {
+  id: string; originalFilename: string; mimeType: string; size: string; status: FileStatus; currentVersion: number;
+  updatedAt: string; uploader: { name: string }; department?: Department; canDelete: boolean;
 };
+type ApiResponse<T> = { success: boolean; data?: T; error?: { message: string } };
+
+const blockedExtensions = new Set(['apk', 'app', 'bat', 'cmd', 'com', 'cpl', 'dll', 'exe', 'gadget', 'hta', 'inf', 'ins', 'iso', 'jar', 'js', 'jse', 'lib', 'lnk', 'mde', 'msc', 'msi', 'msp', 'mst', 'pif', 'ps1', 'reg', 'scr', 'sct', 'sh', 'sys', 'vb', 'vbe', 'vbs', 'ws', 'wsc', 'wsf', 'wsh']);
 
 function getFileTypeIcon(mimeType: string) {
   if (mimeType.includes('word') || mimeType.includes('document')) return FileText;
@@ -32,151 +38,111 @@ function getFileTypeColor(mimeType: string) {
 export default function FilesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [deptFilter, setDeptFilter] = useState('all');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 30, total: 0, hasMore: false });
+  const [files, setFiles] = useState<ApiFile[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const filteredFiles = useMemo(() => {
-    let result = [...files];
-    if (deptFilter !== 'all') {
-      result = result.filter((f) => f.departmentId === deptFilter);
+  const loadFiles = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), pageSize: '30' });
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (deptFilter) params.set('departmentId', deptFilter);
+    if (statusFilter) params.set('status', statusFilter);
+    try {
+      const response = await fetch(`/api/files?${params}`, { cache: 'no-store' });
+      const payload = await response.json() as ApiResponse<{ items: ApiFile[]; pagination: typeof pagination }>;
+      if (!response.ok || !payload.success) throw new Error(payload.error?.message ?? '读取材料失败。');
+      setFiles(payload.data?.items ?? []);
+      if (payload.data?.pagination) setPagination(payload.data.pagination);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '读取材料失败。');
+    } finally {
+      setLoading(false);
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((f) => f.originalFilename.toLowerCase().includes(q));
-    }
-    return result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [searchQuery, deptFilter]);
+  }, [deptFilter, page, searchQuery, statusFilter]);
 
-  return (
-    <div className="p-6 lg:p-10 max-w-[1200px] mx-auto">
-      <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
-        <motion.div variants={fadeUp} className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight mb-1">材料中心</h1>
-          <p className="text-sm text-muted-foreground">浏览和管理团总支全部材料文件</p>
-        </motion.div>
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadFiles(); }, 150);
+    return () => window.clearTimeout(timer);
+  }, [loadFiles]);
+  useEffect(() => {
+    void fetch('/api/departments', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((payload: ApiResponse<Department[]>) => { if (payload.success) setDepartments(payload.data ?? []); })
+      .catch(() => undefined);
+  }, []);
 
-        {/* Toolbar */}
-        <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索文件、任务、活动……"
-              className="h-9 w-full pl-9 pr-3 rounded-lg border border-border bg-white text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-foreground/10 transition-all"
-            />
-          </div>
-          <select
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-foreground/10"
-          >
-            <option value="all">全部部门</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-          <div className="flex border border-border rounded-lg overflow-hidden">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn('h-9 w-9 flex items-center justify-center transition-colors', viewMode === 'list' ? 'bg-muted' : 'hover:bg-muted/50')}
-              aria-label="列表视图"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn('h-9 w-9 flex items-center justify-center transition-colors', viewMode === 'grid' ? 'bg-muted' : 'hover:bg-muted/50')}
-              aria-label="网格视图"
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </button>
-          </div>
-        </motion.div>
+  const upload = (file: File) => {
+    const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : '';
+    if (!isAllowedUploadSize(file.size)) { toast.error(`文件需小于 ${formatFileSize(MAX_FILE_SIZE_BYTES)}。`); return; }
+    if (extension && blockedExtensions.has(extension)) { toast.error('不允许上传可执行文件。'); return; }
+    setUploading(true); setProgress(0);
+    const request = new XMLHttpRequest();
+    request.open('POST', '/api/files/upload');
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    request.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
+    if (deptFilter) request.setRequestHeader('X-Department-Id', deptFilter);
+    request.upload.onprogress = (event) => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 100)); };
+    request.onload = () => {
+      setUploading(false);
+      try {
+        const payload = JSON.parse(request.responseText) as ApiResponse<{ id: string }>;
+        if (request.status >= 200 && request.status < 300 && payload.success) { toast.success('材料已上传。'); void loadFiles(); }
+        else toast.error(payload.error?.message ?? '文件上传失败。');
+      } catch { toast.error('文件上传失败。'); }
+    };
+    request.onerror = () => { setUploading(false); toast.error('网络错误，文件未上传。'); };
+    request.send(file);
+  };
 
-        {/* File List / Grid */}
-        <motion.div variants={fadeUp}>
-          {filteredFiles.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="w-12 h-12 rounded-xl bg-muted mx-auto mb-4 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">没有找到相关文件</p>
-            </div>
-          ) : viewMode === 'list' ? (
-            <div className="bg-white rounded-xl border border-border/60 overflow-hidden">
-              <div className="grid grid-cols-[1fr_100px_80px_80px_90px_80px] gap-4 px-5 py-3 border-b border-border/50 text-xs text-muted-foreground font-medium">
-                <span>文件</span>
-                <span>部门</span>
-                <span>大小</span>
-                <span>版本</span>
-                <span>更新时间</span>
-                <span>状态</span>
-              </div>
-              {filteredFiles.map((file) => {
-                const Icon = getFileTypeIcon(file.mimeType);
-                const iconColor = getFileTypeColor(file.mimeType);
-                const uploader = getProfileById(file.uploaderId);
-                const dept = file.departmentId ? getDepartmentById(file.departmentId) : null;
+  const onSelectFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const [file] = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (file) upload(file);
+  };
 
-                return (
-                  <div
-                    key={file.id}
-                    className="grid grid-cols-[1fr_100px_80px_80px_90px_80px] gap-4 px-5 py-3.5 border-b border-border/30 last:border-0 hover:bg-surface-hover transition-colors items-center cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-sm truncate block">{file.originalFilename}</span>
-                        <span className="text-[11px] text-muted-foreground">{uploader?.name}</span>
-                      </div>
-                    </div>
-                    <span className="text-sm text-muted-foreground">{dept?.shortName || '-'}</span>
-                    <span className="text-sm text-muted-foreground font-tabular">{formatFileSize(file.size)}</span>
-                    <span className="text-sm text-muted-foreground font-tabular">V{file.currentVersion}</span>
-                    <span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span>
-                    <Badge variant="outline" className="text-[10px] h-5 justify-center">
-                      {FileStatusLabel[file.status]}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredFiles.map((file) => {
-                const Icon = getFileTypeIcon(file.mimeType);
-                const iconColor = getFileTypeColor(file.mimeType);
-                const uploader = getProfileById(file.uploaderId);
+  const remove = async (file: ApiFile) => {
+    if (!window.confirm(`确定删除“${file.originalFilename}”吗？`)) return;
+    const response = await fetch(`/api/files/${file.id}`, { method: 'DELETE' });
+    const payload = await response.json() as ApiResponse<unknown>;
+    if (!response.ok || !payload.success) { toast.error(payload.error?.message ?? '删除失败。'); return; }
+    toast.success('材料已删除。'); void loadFiles();
+  };
 
-                return (
-                  <div
-                    key={file.id}
-                    className="bg-white rounded-xl border border-border/60 p-4 hover:border-border hover:shadow-sm transition-all cursor-pointer group"
-                  >
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', iconColor)}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-sm font-medium truncate mb-1">{file.originalFilename}</h3>
-                    <div className="text-[11px] text-muted-foreground space-y-0.5">
-                      <p>{uploader?.name} · {formatFileSize(file.size)}</p>
-                      <p>{formatRelativeTime(file.updatedAt)}</p>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <Badge variant="outline" className="text-[10px] h-5">
-                        {FileStatusLabel[file.status]}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground font-tabular">V{file.currentVersion}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-      </motion.div>
-    </div>
-  );
+  const content = useMemo(() => files.map((file) => {
+    const Icon = getFileTypeIcon(file.mimeType); const iconColor = getFileTypeColor(file.mimeType);
+    return { file, Icon, iconColor };
+  }), [files]);
+
+  return <div className="p-6 lg:p-10 max-w-[1200px] mx-auto">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div><h1 className="text-2xl font-semibold tracking-tight mb-1">材料中心</h1><p className="text-sm text-muted-foreground">浏览和管理团总支材料文件</p></div>
+        <input ref={fileInput} type="file" className="hidden" onChange={onSelectFile} />
+        <Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '上传材料'}</Button>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setPage(1); }} placeholder="搜索文件名称" className="h-9 w-full pl-9 pr-3 rounded-lg border border-border bg-white text-sm" /></div>
+        <select value={deptFilter} onChange={(event) => { setDeptFilter(event.target.value); setPage(1); }} className="h-9 px-3 rounded-lg border border-border bg-white text-sm"><option value="">全部部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select>
+        <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="h-9 px-3 rounded-lg border border-border bg-white text-sm"><option value="">全部状态</option>{Object.entries(FileStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+        <div className="flex border border-border rounded-lg overflow-hidden"><button onClick={() => setViewMode('list')} className={cn('h-9 w-9 flex items-center justify-center', viewMode === 'list' && 'bg-muted')} aria-label="列表视图"><List className="w-4 h-4" /></button><button onClick={() => setViewMode('grid')} className={cn('h-9 w-9 flex items-center justify-center', viewMode === 'grid' && 'bg-muted')} aria-label="网格视图"><Grid3X3 className="w-4 h-4" /></button></div>
+      </div>
+      {loading ? <div className="text-center py-20 text-sm text-muted-foreground">正在加载材料…</div> : content.length === 0 ? <div className="text-center py-20 text-sm text-muted-foreground">没有找到相关文件</div> : viewMode === 'list' ? <div className="bg-white rounded-xl border border-border/60 overflow-hidden">
+        <div className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3 border-b text-xs text-muted-foreground font-medium"><span>文件</span><span>部门</span><span>大小</span><span>版本</span><span>更新时间</span><span>操作</span></div>
+        {content.map(({ file, Icon, iconColor }) => <div key={file.id} className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3.5 border-b last:border-0 items-center"><div className="flex items-center gap-3 min-w-0"><div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}><Icon className="w-4 h-4" /></div><div className="min-w-0"><span className="text-sm truncate block">{file.originalFilename}</span><span className="text-[11px] text-muted-foreground">{file.uploader.name}</span></div></div><span className="text-sm text-muted-foreground">{file.department?.shortName ?? '-'}</span><span className="text-sm text-muted-foreground">{formatFileSize(Number(file.size))}</span><span className="text-sm text-muted-foreground">V{file.currentVersion}</span><span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span><FileActions file={file} onDelete={remove} /></div>)}
+      </div> : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{content.map(({ file, Icon, iconColor }) => <div key={file.id} className="bg-white rounded-xl border border-border/60 p-4"><div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', iconColor)}><Icon className="w-5 h-5" /></div><h3 className="text-sm font-medium truncate mb-1">{file.originalFilename}</h3><p className="text-[11px] text-muted-foreground">{file.uploader.name} · {formatFileSize(Number(file.size))}</p><div className="mt-3 flex items-center justify-between"><Badge variant="outline" className="text-[10px] h-5">{FileStatusLabel[file.status]}</Badge><FileActions file={file} onDelete={remove} /></div></div>)}</div>}
+      {pagination.total > pagination.pageSize && <div className="mt-5 flex items-center justify-end gap-3 text-sm"><span className="text-muted-foreground">共 {pagination.total} 个文件</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button><span>{page}</span><Button variant="outline" size="sm" disabled={!pagination.hasMore} onClick={() => setPage((current) => current + 1)}>下一页</Button></div>}
+    </motion.div>
+  </div>;
+}
+
+function FileActions({ file, onDelete }: { file: ApiFile; onDelete: (file: ApiFile) => void }) {
+  return <div className="flex items-center gap-1"><Button variant="ghost" size="icon-xs" title="下载或查看文件" onClick={() => window.open(`/api/files/${file.id}/content`, '_blank', 'noopener,noreferrer')}><Download /></Button>{file.canDelete && <Button variant="ghost" size="icon-xs" title="删除文件" onClick={() => onDelete(file)}><Trash2 className="text-destructive" /></Button>}</div>;
 }

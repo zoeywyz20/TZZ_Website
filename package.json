@@ -13,6 +13,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "verify:storage": "tsx scripts/verify-file-storage.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
