@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
 const listSchema = z.object({
   q: z.string().trim().max(100).optional(),
   departmentId: z.string().uuid().optional(),
+  folderId: z.string().uuid().nullable().optional(),
   status: z.nativeEnum(FileStatus).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(30),
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
     const parsed = listSchema.safeParse({
       q: url.searchParams.get('q') ?? undefined,
       departmentId: url.searchParams.get('departmentId') ?? undefined,
+      folderId: url.searchParams.get('folderId') === 'root' ? null : url.searchParams.get('folderId') ?? undefined,
       status: url.searchParams.get('status') ?? undefined,
       page: url.searchParams.get('page') ?? undefined,
       pageSize: url.searchParams.get('pageSize') ?? undefined,
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
     if (error instanceof AuthorizationError || error instanceof StorageValidationError || (error instanceof Error && error.message === 'FILE_FORBIDDEN')) {
       return apiError(error instanceof StorageValidationError ? 'UPLOAD_REJECTED' : 'FORBIDDEN', error.message, error instanceof StorageValidationError ? 400 : 403);
     }
-    if (error instanceof Error && ['TASK_NOT_FOUND', 'FOLDER_NOT_FOUND', 'UPLOAD_TARGET_MISMATCH'].includes(error.message)) return apiError('VALIDATION_ERROR', '文件关联对象不合法。', 400);
+    if (error instanceof Error && ['TASK_NOT_FOUND', 'FOLDER_NOT_FOUND', 'UPLOAD_TARGET_MISMATCH', 'DEPARTMENT_REQUIRED'].includes(error.message)) return apiError('VALIDATION_ERROR', error.message === 'DEPARTMENT_REQUIRED' ? '部门可见文件必须指定所属部门。' : '文件关联对象不合法。', 400);
     return apiError('UPLOAD_FAILED', '文件上传失败，未创建材料记录。', 500);
   }
 }

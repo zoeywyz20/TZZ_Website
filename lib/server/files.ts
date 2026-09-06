@@ -31,11 +31,12 @@ export function canDeleteFile(user: AuthUser, file: NonNullable<FileWithAccess>)
   return can(user, 'file:delete') && canAccessFile(user, file);
 }
 
-export async function listFiles(user: AuthUser, filters: { q?: string; departmentId?: string; status?: FileStatus; page: number; pageSize: number }) {
+export async function listFiles(user: AuthUser, filters: { q?: string; departmentId?: string; folderId?: string | null; status?: FileStatus; page: number; pageSize: number }) {
   const where: Prisma.FileRecordWhereInput = {
     deletedAt: null,
     ...(filters.q ? { originalFilename: { contains: filters.q, mode: 'insensitive' } } : {}),
     ...(filters.departmentId ? { departmentId: filters.departmentId } : {}),
+    ...(filters.folderId !== undefined ? { folderId: filters.folderId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...fileVisibilityWhere(user),
   };
@@ -155,6 +156,7 @@ async function resolveUploadTarget(user: AuthUser, input: UploadInput) {
   if (input.departmentId && !isLeadership && input.departmentId !== user.departmentId) throw new Error('FILE_FORBIDDEN');
   if (task && input.departmentId && task.departmentId !== input.departmentId) throw new Error('UPLOAD_TARGET_MISMATCH');
   const departmentId = task?.departmentId ?? input.departmentId ?? user.departmentId;
+  if (input.visibility === Visibility.DEPARTMENT && !departmentId) throw new Error('DEPARTMENT_REQUIRED');
   if (input.folderId) {
     const folder = await db.folder.findUnique({ where: { id: input.folderId } });
     if (!folder) throw new Error('FOLDER_NOT_FOUND');

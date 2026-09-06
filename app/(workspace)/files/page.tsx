@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Archive, Download, FileSpreadsheet, FileText, Grid3X3, Image, List, Search, Trash2, Upload } from 'lucide-react';
+import { Archive, Download, FileSpreadsheet, FileText, Folder, FolderPlus, Grid3X3, Image, List, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,10 @@ import { FileStatus, FileStatusLabel } from '@/types';
 type Department = { id: string; name: string; shortName: string };
 type ApiFile = {
   id: string; originalFilename: string; mimeType: string; size: string; status: FileStatus; currentVersion: number;
-  updatedAt: string; uploader: { name: string }; department?: Department; canDelete: boolean;
+  updatedAt: string; uploader: { name: string }; department?: Department; folder?: { id: string; name: string; parentId: string | null }; canDelete: boolean;
 };
 type ApiResponse<T> = { success: boolean; data?: T; error?: { message: string } };
+type ApiFolder = { id: string; name: string; parentId: string | null; department?: Department; childrenCount: number; fileCount: number; canManage: boolean };
 
 const blockedExtensions = new Set(['apk', 'app', 'bat', 'cmd', 'com', 'cpl', 'dll', 'exe', 'gadget', 'hta', 'inf', 'ins', 'iso', 'jar', 'js', 'jse', 'lib', 'lnk', 'mde', 'msc', 'msi', 'msp', 'mst', 'pif', 'ps1', 'reg', 'scr', 'sct', 'sh', 'sys', 'vb', 'vbe', 'vbs', 'ws', 'wsc', 'wsf', 'wsh']);
 
@@ -38,12 +39,16 @@ function getFileTypeColor(mimeType: string) {
 export default function FilesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 30, total: 0, hasMore: false });
   const [files, setFiles] = useState<ApiFile[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [folders, setFolders] = useState<ApiFolder[]>([]);
+  const [uploadDepartment, setUploadDepartment] = useState('');
+  const [uploadVisibility, setUploadVisibility] = useState('DEPARTMENT');
+  const [selectedUpload, setSelectedUpload] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -53,7 +58,7 @@ export default function FilesPage() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: '30' });
     if (searchQuery.trim()) params.set('q', searchQuery.trim());
-    if (deptFilter) params.set('departmentId', deptFilter);
+    if (!searchQuery.trim()) params.set('folderId', currentFolder ?? 'root');
     if (statusFilter) params.set('status', statusFilter);
     try {
       const response = await fetch(`/api/files?${params}`, { cache: 'no-store' });
@@ -66,7 +71,7 @@ export default function FilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [deptFilter, page, searchQuery, statusFilter]);
+  }, [currentFolder, page, searchQuery, statusFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadFiles(); }, 150);
@@ -78,6 +83,7 @@ export default function FilesPage() {
       .then((payload: ApiResponse<Department[]>) => { if (payload.success) setDepartments(payload.data ?? []); })
       .catch(() => undefined);
   }, []);
+  useEffect(() => { void fetch('/api/folders', { cache: 'no-store' }).then((response) => response.json()).then((payload: ApiResponse<ApiFolder[]>) => { if (payload.success) setFolders(payload.data ?? []); }).catch(() => undefined); }, []);
 
   const upload = (file: File) => {
     const extension = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() : '';
@@ -88,7 +94,9 @@ export default function FilesPage() {
     request.open('POST', '/api/files/upload');
     request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     request.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
-    if (deptFilter) request.setRequestHeader('X-Department-Id', deptFilter);
+    if (uploadDepartment) request.setRequestHeader('X-Department-Id', uploadDepartment);
+    if (currentFolder) request.setRequestHeader('X-Folder-Id', currentFolder);
+    request.setRequestHeader('X-File-Visibility', uploadVisibility);
     request.upload.onprogress = (event) => { if (event.lengthComputable) setProgress(Math.round(event.loaded / event.total * 100)); };
     request.onload = () => {
       setUploading(false);
@@ -105,8 +113,11 @@ export default function FilesPage() {
   const onSelectFile = (event: ChangeEvent<HTMLInputElement>) => {
     const [file] = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (file) upload(file);
+    if (file) setSelectedUpload(file);
   };
+
+  const createFolder = async () => { const name = window.prompt('新建文件夹名称'); if (!name) return; const response = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parentId: currentFolder, departmentId: uploadDepartment || null }) }); const payload = await response.json() as ApiResponse<unknown>; if (!response.ok || !payload.success) toast.error(payload.error?.message ?? '创建目录失败。'); else { toast.success('文件夹已创建。'); window.location.reload(); } };
+  const folderTrail = useMemo(() => { const result: ApiFolder[] = []; let id = currentFolder; while (id) { const folder = folders.find((item) => item.id === id); if (!folder) break; result.unshift(folder); id = folder.parentId; } return result; }, [currentFolder, folders]);
 
   const remove = async (file: ApiFile) => {
     if (!window.confirm(`确定删除“${file.originalFilename}”吗？`)) return;
@@ -125,18 +136,20 @@ export default function FilesPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="mb-8 flex items-start justify-between gap-4">
         <div><h1 className="text-2xl font-semibold tracking-tight mb-1">材料中心</h1><p className="text-sm text-muted-foreground">浏览和管理团总支材料文件</p></div>
+        <div className="flex gap-2"><Button variant="outline" onClick={createFolder}><FolderPlus />新建文件夹</Button><Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '选择文件'}</Button></div>
         <input ref={fileInput} type="file" className="hidden" onChange={onSelectFile} />
-        <Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '上传材料'}</Button>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setPage(1); }} placeholder="搜索文件名称" className="h-9 w-full pl-9 pr-3 rounded-lg border border-border bg-white text-sm" /></div>
-        <select value={deptFilter} onChange={(event) => { setDeptFilter(event.target.value); setPage(1); }} className="h-9 px-3 rounded-lg border border-border bg-white text-sm"><option value="">全部部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select>
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setPage(1); }} placeholder="跨目录搜索文件名称" className="h-9 w-full pl-9 pr-3 rounded-lg border border-border bg-white text-sm" /></div>
         <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="h-9 px-3 rounded-lg border border-border bg-white text-sm"><option value="">全部状态</option>{Object.entries(FileStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         <div className="flex border border-border rounded-lg overflow-hidden"><button onClick={() => setViewMode('list')} className={cn('h-9 w-9 flex items-center justify-center', viewMode === 'list' && 'bg-muted')} aria-label="列表视图"><List className="w-4 h-4" /></button><button onClick={() => setViewMode('grid')} className={cn('h-9 w-9 flex items-center justify-center', viewMode === 'grid' && 'bg-muted')} aria-label="网格视图"><Grid3X3 className="w-4 h-4" /></button></div>
       </div>
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm"><button className="text-primary" onClick={() => setCurrentFolder(null)}>材料中心</button>{folderTrail.map((folder) => <span key={folder.id}>/ <button className="text-primary" onClick={() => setCurrentFolder(folder.id)}>{folder.name}</button></span>)}</div>
+      {!searchQuery && <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">{folders.filter((folder) => folder.parentId === currentFolder).map((folder) => <button key={folder.id} className="rounded-lg border bg-white p-3 text-left text-sm hover:bg-muted" onClick={() => { setCurrentFolder(folder.id); setPage(1); }}><Folder className="mb-1 size-4 text-amber-500" />{folder.name}<span className="ml-2 text-xs text-muted-foreground">{folder.fileCount}</span></button>)}</div>}
+      {selectedUpload && <div className="mb-4 rounded-xl border bg-white p-4 text-sm"><div className="mb-3 font-medium">上传材料：{selectedUpload.name}</div><div className="flex flex-wrap gap-2"><select value={uploadDepartment} onChange={(event) => setUploadDepartment(event.target.value)} className="h-9 rounded border px-2"><option value="">默认所属部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select><select value={uploadVisibility} onChange={(event) => setUploadVisibility(event.target.value)} className="h-9 rounded border px-2"><option value="DEPARTMENT">部门可见</option><option value="ALL">公开可见</option></select><Button onClick={() => { upload(selectedUpload); setSelectedUpload(null); }}>确认上传</Button><Button variant="outline" onClick={() => setSelectedUpload(null)}>取消</Button></div></div>}
       {loading ? <div className="text-center py-20 text-sm text-muted-foreground">正在加载材料…</div> : content.length === 0 ? <div className="text-center py-20 text-sm text-muted-foreground">没有找到相关文件</div> : viewMode === 'list' ? <div className="bg-white rounded-xl border border-border/60 overflow-hidden">
         <div className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3 border-b text-xs text-muted-foreground font-medium"><span>文件</span><span>部门</span><span>大小</span><span>版本</span><span>更新时间</span><span>操作</span></div>
-        {content.map(({ file, Icon, iconColor }) => <div key={file.id} className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3.5 border-b last:border-0 items-center"><div className="flex items-center gap-3 min-w-0"><div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}><Icon className="w-4 h-4" /></div><div className="min-w-0"><span className="text-sm truncate block">{file.originalFilename}</span><span className="text-[11px] text-muted-foreground">{file.uploader.name}</span></div></div><span className="text-sm text-muted-foreground">{file.department?.shortName ?? '-'}</span><span className="text-sm text-muted-foreground">{formatFileSize(Number(file.size))}</span><span className="text-sm text-muted-foreground">V{file.currentVersion}</span><span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span><FileActions file={file} onDelete={remove} /></div>)}
+        {content.map(({ file, Icon, iconColor }) => <div key={file.id} className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3.5 border-b last:border-0 items-center"><div className="flex items-center gap-3 min-w-0"><div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}><Icon className="w-4 h-4" /></div><div className="min-w-0"><span className="text-sm truncate block">{file.originalFilename}</span><span className="text-[11px] text-muted-foreground">{file.uploader.name}{searchQuery && file.folder ? ` · ${file.folder.name}` : ''}</span></div></div><span className="text-sm text-muted-foreground">{file.department?.shortName ?? '-'}</span><span className="text-sm text-muted-foreground">{formatFileSize(Number(file.size))}</span><span className="text-sm text-muted-foreground">V{file.currentVersion}</span><span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span><FileActions file={file} onDelete={remove} /></div>)}
       </div> : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{content.map(({ file, Icon, iconColor }) => <div key={file.id} className="bg-white rounded-xl border border-border/60 p-4"><div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', iconColor)}><Icon className="w-5 h-5" /></div><h3 className="text-sm font-medium truncate mb-1">{file.originalFilename}</h3><p className="text-[11px] text-muted-foreground">{file.uploader.name} · {formatFileSize(Number(file.size))}</p><div className="mt-3 flex items-center justify-between"><Badge variant="outline" className="text-[10px] h-5">{FileStatusLabel[file.status]}</Badge><FileActions file={file} onDelete={remove} /></div></div>)}</div>}
       {pagination.total > pagination.pageSize && <div className="mt-5 flex items-center justify-end gap-3 text-sm"><span className="text-muted-foreground">共 {pagination.total} 个文件</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button><span>{page}</span><Button variant="outline" size="sm" disabled={!pagination.hasMore} onClick={() => setPage((current) => current + 1)}>下一页</Button></div>}
     </motion.div>

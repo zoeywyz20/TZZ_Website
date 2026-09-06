@@ -71,6 +71,11 @@ enum SubmissionStatus {
   rejected
 }
 
+enum ImportStatus {
+  PENDING
+  COMPLETED
+}
+
 model Department {
   id          String    @id @default(uuid())
   name        String    @unique
@@ -241,6 +246,7 @@ model FileRecord {
   versions    FileVersion[]
   submissions Submission[]
   reviews     ReviewRecord[]
+  importRecord ImportRecord?
 
   @@index([uploaderId])
   @@index([taskId])
@@ -267,8 +273,25 @@ model Folder {
 
   @@index([parentId])
   @@index([departmentId])
-  @@unique([parentId, name])
   @@map("folders")
+}
+
+model ImportRecord {
+  id           String       @id @default(uuid())
+  source       String
+  relativePath String       @map("relative_path")
+  storageKey   String       @unique @map("storage_key")
+  hash         String
+  status       ImportStatus @default(PENDING)
+  fileId       String?      @unique @map("file_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  completedAt  DateTime?    @map("completed_at")
+
+  file FileRecord? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@unique([source, relativePath])
+  @@index([status])
+  @@map("import_records")
 }
 
 model FileVersion {

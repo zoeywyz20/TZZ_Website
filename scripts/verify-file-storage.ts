@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { assertUploadAllowed, commitTemporaryFile, deleteStoredFile, openStoredFile, validateStorageKey, writeRequestToTemporaryFile } from '../lib/server/file-storage';
+import { assertUploadAllowed, commitTemporaryFile, deleteStoredFile, openStoredFile, validateStorageKey, writeRequestToTemporaryFile } from '../lib/storage-core';
 
 async function main() {
   const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode('TZZ storage verification')); controller.close(); } });
