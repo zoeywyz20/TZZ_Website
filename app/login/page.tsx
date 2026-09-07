@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { OceanCurrentBackground } from '@/components/ui/ocean-current-background';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -220,7 +221,7 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-8 text-center text-[13px] text-muted-foreground/60">
-            如需注册账号，请联系团总支管理员
+            没有账号？<Link href="/register" className="underline hover:text-foreground">申请加入</Link>
           </p>
         </motion.div>
 

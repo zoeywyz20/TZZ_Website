@@ -101,6 +101,16 @@ DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE"
 ALLOWED_EMAIL_DOMAIN=stu.njnu.edu.cn
 # Set this only in the untracked production environment file. Never commit its real value.
 INITIAL_ACCOUNT_PASSWORD=
+SCHOOL_EMAIL_DOMAIN=njnu.edu.cn
+NEXT_PUBLIC_SCHOOL_EMAIL_DOMAIN=njnu.edu.cn
+OTP_SECRET="$(openssl rand -base64 48)"
+PUBLIC_APP_URL="https://YOUR_HOST"
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
 SEED_DEFAULT_PASSWORD="仅用于首次 seed 的强密码"
 NODE_ENV=development
 HOSTNAME=127.0.0.1

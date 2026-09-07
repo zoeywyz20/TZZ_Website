@@ -1,0 +1,7 @@
+import { RegistrationStatus } from '@/generated/prisma/client';
+import { apiError, apiSuccess } from '@/lib/api/response';
+import { AuthenticationError, AuthorizationError, PasswordChangeRequiredError, requirePermission } from '@/lib/auth';
+import { listRegistrations } from '@/lib/server/registration';
+import { z } from 'zod';
+export const runtime = 'nodejs'; export const dynamic = 'force-dynamic';
+export async function GET(request: Request) { try { await requirePermission('member:manage'); const status = z.nativeEnum(RegistrationStatus).optional().safeParse(new URL(request.url).searchParams.get('status') ?? undefined); if (!status.success) return apiError('VALIDATION_ERROR', '状态参数不合法。', 400); const rows = await listRegistrations(status.data); return apiSuccess(rows.map((item) => ({ id: item.id, name: item.name, studentId: item.studentId, email: item.email, status: item.status, emailVerifiedAt: item.emailVerifiedAt?.toISOString(), requestedDepartment: item.requestedDepartment, approvedDepartment: item.approvedDepartment, approvedRole: item.approvedRole, reviewNote: item.reviewNote, createdAt: item.createdAt.toISOString(), reviewedAt: item.reviewedAt?.toISOString(), activatedAt: item.activatedAt?.toISOString() }))); } catch (error) { if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401); if (error instanceof PasswordChangeRequiredError || error instanceof AuthorizationError) return apiError('FORBIDDEN', error.message, 403); return apiError('REQUEST_FAILED', '无法读取注册申请。', 500); } }

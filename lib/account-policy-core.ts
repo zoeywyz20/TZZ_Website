@@ -2,10 +2,16 @@ const DEVELOPMENT_EMAIL_DOMAIN = 'example.local';
 export class AccountPolicyError extends Error {}
 export function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
 export function getAllowedEmailDomain() {
-  const domain = process.env.ALLOWED_EMAIL_DOMAIN?.trim().toLowerCase();
+  const domain = (process.env.SCHOOL_EMAIL_DOMAIN ?? process.env.ALLOWED_EMAIL_DOMAIN)?.trim().toLowerCase();
   if (!domain || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain)) throw new AccountPolicyError('ALLOWED_EMAIL_DOMAIN is not configured.');
   return domain;
 }
+export function normalizeStudentId(value: string) {
+  const studentId = value.trim().toLowerCase();
+  if (!studentId || !/^[a-z0-9_-]+$/.test(studentId)) throw new AccountPolicyError('学号格式不合法。');
+  return studentId;
+}
+export function schoolEmailForStudentId(value: string) { return `${normalizeStudentId(value)}@${getAllowedEmailDomain()}`; }
 export function isAllowedAccountEmail(value: string) {
   const email = normalizeEmail(value); const at = email.lastIndexOf('@'); if (at <= 0 || at === email.length - 1) return false;
   const domain = email.slice(at + 1); return domain === getAllowedEmailDomain() || (process.env.NODE_ENV !== 'production' && domain === DEVELOPMENT_EMAIL_DOMAIN);

@@ -76,6 +76,14 @@ enum ImportStatus {
   COMPLETED
 }
 
+enum RegistrationStatus {
+  EMAIL_PENDING
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVATED
+}
+
 model Department {
   id          String    @id @default(uuid())
   name        String    @unique
@@ -90,6 +98,8 @@ model Department {
   files   FileRecord[]
   folders Folder[]
   tasks   Task[]
+  requestedRegistrations RegistrationApplication[] @relation("RegistrationRequestedDepartment")
+  approvedRegistrations RegistrationApplication[] @relation("RegistrationApprovedDepartment")
 
   @@map("departments")
 }
@@ -124,9 +134,65 @@ model Profile {
   submissions         Submission[]
   reviews             ReviewRecord[]
   sessions            Session[]
+  reviewedRegistrations RegistrationApplication[] @relation("RegistrationReviewer")
+  auditLogs           AuditLog[] @relation("AuditActor")
 
   @@index([departmentId])
   @@map("profiles")
+}
+
+model RegistrationApplication {
+  id                    String             @id @default(uuid())
+  name                  String
+  studentId             String             @map("student_id")
+  email                 String             @unique
+  requestedDepartmentId String?            @map("requested_department_id")
+  status                RegistrationStatus @default(EMAIL_PENDING)
+  emailVerifiedAt       DateTime?          @map("email_verified_at")
+  verificationCodeHash  String?            @map("verification_code_hash")
+  verificationExpiresAt DateTime?          @map("verification_expires_at")
+  verificationAttempts  Int                @default(0) @map("verification_attempts")
+  verificationSentAt    DateTime?          @map("verification_sent_at")
+  approvedRole          Role?              @map("approved_role")
+  approvedDepartmentId  String?            @map("approved_department_id")
+  reviewedBy            String?            @map("reviewed_by")
+  reviewedAt            DateTime?          @map("reviewed_at")
+  reviewNote            String?            @map("review_note")
+  activationTokenHash   String?            @unique @map("activation_token_hash")
+  activationExpiresAt   DateTime?          @map("activation_expires_at")
+  activatedAt           DateTime?          @map("activated_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  requestedDepartment Department? @relation("RegistrationRequestedDepartment", fields: [requestedDepartmentId], references: [id], onDelete: SetNull)
+  approvedDepartment  Department? @relation("RegistrationApprovedDepartment", fields: [approvedDepartmentId], references: [id], onDelete: SetNull)
+  reviewer            Profile?    @relation("RegistrationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  auditLogs           AuditLog[]
+
+  @@index([studentId])
+  @@index([status, createdAt])
+  @@index([reviewedAt])
+  @@map("registration_applications")
+}
+
+model AuditLog {
+  id                    String   @id @default(uuid())
+  action                String
+  actorId               String?  @map("actor_id")
+  applicationId         String?  @map("application_id")
+  targetEmail           String?  @map("target_email")
+  oldStatus             RegistrationStatus? @map("old_status")
+  newStatus             RegistrationStatus? @map("new_status")
+  approvedRole          Role?    @map("approved_role")
+  approvedDepartmentId  String?  @map("approved_department_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  actor       Profile?                 @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  application RegistrationApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
 }
 
 model Session {

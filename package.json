@@ -17,6 +17,7 @@
     "verify:folders": "tsx scripts/verify-folder-import-design.ts",
     "verify:files:integration": "tsx scripts/verify-files-integration.ts",
     "verify:accounts": "tsx scripts/verify-account-policy.ts",
+    "verify:registration": "tsx scripts/verify-registration-policy.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "lucide-react": "^1.30.0",
     "next": "16.3.0",
     "next-themes": "^0.4.6",
+    "nodemailer": "^10.0.0",
     "pg": "^8.23.0",
     "react": "19.2.8",
     "react-day-picker": "^10.0.1",
@@ -49,6 +51,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -8,6 +8,7 @@ import { RoleLabel, Role } from '@/types';
 import type { MemberDto } from '@/lib/api/contracts';
 import { workspaceApi } from '@/lib/api/workspace';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { canManageMembers } from '@/lib/permissions';
 import type { DepartmentDto } from '@/lib/api/contracts';
@@ -66,7 +67,7 @@ export default function MembersPage() {
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
         <motion.div variants={fadeUp} className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight mb-1">成员</h1>
-          <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">团总支全体成员 ({profiles.length}人)</p>{canManage && <button onClick={() => setCreating((value) => !value)} className="h-9 rounded-lg bg-foreground px-3 text-sm text-background">创建账号</button>}</div>
+          <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">团总支全体成员 ({profiles.length}人)</p>{canManage && <div className="flex gap-2"><Link href="/members/registrations" className="h-9 rounded-lg border px-3 py-2 text-sm">注册申请</Link><button onClick={() => setCreating((value) => !value)} className="h-9 rounded-lg bg-foreground px-3 text-sm text-background">创建账号</button></div>}</div>
         </motion.div>
 
         {creating && <motion.form variants={fadeUp} onSubmit={createMember} className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-4 sm:grid-cols-2"><input required value={newMember.name} onChange={(e) => setNewMember({ ...newMember, name: e.target.value })} placeholder="姓名" className="h-10 rounded-lg border px-3 text-sm" /><input required type="email" value={newMember.email} onChange={(e) => setNewMember({ ...newMember, email: e.target.value })} placeholder="name@stu.njnu.edu.cn" className="h-10 rounded-lg border px-3 text-sm" /><select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value as Role })} className="h-10 rounded-lg border px-3 text-sm">{Object.values(Role).map((role) => <option key={role} value={role}>{RoleLabel[role]}</option>)}</select><select value={newMember.departmentId} onChange={(e) => setNewMember({ ...newMember, departmentId: e.target.value })} className="h-10 rounded-lg border px-3 text-sm"><option value="">不分配部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select><div className="sm:col-span-2 flex items-center justify-between"><span className="text-xs text-muted-foreground">新账号将使用管理员配置的初始密码，并在首次登录时强制修改。</span><button className="h-9 rounded-lg bg-foreground px-4 text-sm text-background">开通账号</button></div></motion.form>}
