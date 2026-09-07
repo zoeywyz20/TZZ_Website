@@ -51,7 +51,7 @@ async function main() {
     await db.profile.upsert({
       where: { id: profile.id },
       update: profileData,
-      create: { id, ...profileData, passwordHash },
+      create: { id, ...profileData, passwordHash, mustChangePassword: false, accountEnabled: true },
     });
   }
 

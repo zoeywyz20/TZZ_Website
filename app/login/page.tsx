@@ -13,14 +13,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace('/dashboard');
+      router.replace(user?.mustChangePassword ? '/change-password' : '/dashboard');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, user?.mustChangePassword]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +28,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      router.replace('/dashboard');
-    } catch {
-      setError('登录失败，请稍后重试。');
+      const result = await login(email, password);
+      router.replace(result.requiresPasswordChange ? '/change-password' : '/dashboard');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '登录失败，请稍后重试。');
     } finally {
       setLoading(false);
     }
@@ -138,14 +138,14 @@ export default function LoginPage() {
             {/* Email Field */}
             <div className="space-y-2">
               <label htmlFor="email" className="text-[15px] font-medium text-foreground block">
-                账号
+                学校邮箱
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@ocean.edu.cn"
+                placeholder="name@stu.njnu.edu.cn"
                 className="w-full h-[50px] px-4 rounded-lg border border-border bg-white text-[15px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-foreground focus:ring-0 transition-colors duration-200"
                 required
                 autoFocus

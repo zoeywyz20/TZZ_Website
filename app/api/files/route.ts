@@ -1,6 +1,6 @@
 import { FileStatus, Visibility } from '@/generated/prisma/client';
 import { apiError, apiSuccess } from '@/lib/api/response';
-import { AuthenticationError, AuthorizationError, requirePermission, requireUser } from '@/lib/auth';
+import { AuthenticationError, AuthorizationError, PasswordChangeRequiredError, requirePermission, requireReadyUser } from '@/lib/auth';
 import { listFiles, uploadFile } from '@/lib/server/files';
 import { StorageValidationError } from '@/lib/server/file-storage';
 import { z } from 'zod';
@@ -30,7 +30,7 @@ const uploadHeaderSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireReadyUser();
     if (user.role === 'GUEST') return apiError('FORBIDDEN', '访客不能浏览材料中心。', 403);
     const url = new URL(request.url);
     const parsed = listSchema.safeParse({
@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     return apiSuccess(await listFiles(user, parsed.data));
   } catch (error) {
     if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401);
+    if (error instanceof PasswordChangeRequiredError) return apiError('PASSWORD_CHANGE_REQUIRED', error.message, 403);
     return apiError('REQUEST_FAILED', '暂时无法读取材料列表。', 500);
   }
 }
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
     return apiSuccess({ id: file.id }, 201);
   } catch (error) {
     if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401);
+    if (error instanceof PasswordChangeRequiredError) return apiError('PASSWORD_CHANGE_REQUIRED', error.message, 403);
     if (error instanceof AuthorizationError || error instanceof StorageValidationError || (error instanceof Error && error.message === 'FILE_FORBIDDEN')) {
       return apiError(error instanceof StorageValidationError ? 'UPLOAD_REJECTED' : 'FORBIDDEN', error.message, error instanceof StorageValidationError ? 400 : 403);
     }

@@ -9,8 +9,9 @@ interface AuthContextType {
   user: Profile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ requiresPasswordChange: boolean }>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   unreadCount: number;
 }
 
@@ -25,21 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = user !== null;
   const unreadCount = 0;
 
+  const refreshUser = useCallback(async () => {
+    try { setUser(await authApi.me()); } catch { setUser(null); }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    authApi.me().then((currentUser) => {
-      if (active) setUser(currentUser);
-    }).catch(() => {
-      if (active) setUser(null);
-    }).finally(() => {
-      if (active) setIsLoading(false);
-    });
+    authApi.me().then((currentUser) => { if (active) setUser(currentUser); }).catch(() => { if (active) setUser(null); }).finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, []);
 
-  const login = useCallback(async (email: string, password: string): Promise<void> => {
+  const login = useCallback(async (email: string, password: string) => {
     const currentUser = await authApi.login(email, password);
     setUser(currentUser);
+    return { requiresPasswordChange: currentUser.requiresPasswordChange };
   }, []);
 
   const logout = useCallback(async () => {
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, unreadCount }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout, refreshUser, unreadCount }}>
       {children}
     </AuthContext.Provider>
   );

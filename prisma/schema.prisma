@@ -99,6 +99,9 @@ model Profile {
   name         String
   email        String   @unique
   passwordHash String?  @map("password_hash")
+  mustChangePassword Boolean @default(true) @map("must_change_password")
+  passwordChangedAt DateTime? @map("password_changed_at")
+  accountEnabled Boolean @default(true) @map("account_enabled")
   avatar       String?
   role         Role
   phone        String?

@@ -1,5 +1,5 @@
 import { apiError, apiSuccess } from '@/lib/api/response';
-import { AuthenticationError, AuthorizationError, requirePermission, requireUser } from '@/lib/auth';
+import { AuthenticationError, AuthorizationError, PasswordChangeRequiredError, requirePermission, requireReadyUser } from '@/lib/auth';
 import { createTaskSchema } from '@/lib/validations/task';
 import { createTask, listTasks } from '@/lib/services/tasks';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireReadyUser();
     const url = new URL(request.url);
     const filters = z.object({
       status: z.enum(['DRAFT', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'UNDER_REVIEW', 'REVISION_REQUIRED', 'APPROVED', 'ARCHIVED']).optional(),
@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     return apiSuccess(await listTasks(user, filters.data));
   } catch (error) {
     if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401);
+    if (error instanceof PasswordChangeRequiredError) return apiError('PASSWORD_CHANGE_REQUIRED', error.message, 403);
     return apiError('REQUEST_FAILED', '暂时无法读取任务。', 500);
   }
 }
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     return apiSuccess(await createTask(user, parsed.data), 201);
   } catch (error) {
     if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401);
+    if (error instanceof PasswordChangeRequiredError) return apiError('PASSWORD_CHANGE_REQUIRED', error.message, 403);
     if (error instanceof AuthorizationError) return apiError('FORBIDDEN', error.message, 403);
     if (error instanceof Error && error.message === 'DEPARTMENT_NOT_FOUND') return apiError('DEPARTMENT_NOT_FOUND', '所选部门不存在。', 400);
     if (error instanceof Error && error.message === 'LEADER_NOT_FOUND') return apiError('LEADER_NOT_FOUND', '所选负责人不存在。', 400);

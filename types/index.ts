@@ -119,6 +119,7 @@ export interface Profile {
   joinedAt: string;
   createdAt: string;
   updatedAt: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Department {

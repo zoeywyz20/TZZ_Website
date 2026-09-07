@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -81,6 +82,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout, unreadCount } = useAuth();
 
   const isActive = (href: string) =>
@@ -259,7 +261,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-44">
-            <DropdownMenuItem>个人设置</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/change-password')}>修改密码</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout} className="text-destructive">
               <LogOut className="w-4 h-4 mr-2" />

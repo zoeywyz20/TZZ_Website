@@ -98,6 +98,9 @@ cp .env.example .env.local
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE"
+ALLOWED_EMAIL_DOMAIN=stu.njnu.edu.cn
+# Set this only in the untracked production environment file. Never commit its real value.
+INITIAL_ACCOUNT_PASSWORD=
 SEED_DEFAULT_PASSWORD="仅用于首次 seed 的强密码"
 NODE_ENV=development
 HOSTNAME=127.0.0.1

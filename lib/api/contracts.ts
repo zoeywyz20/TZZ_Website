@@ -12,6 +12,7 @@ export interface AuthUser {
   joinedAt: string;
   createdAt: string;
   updatedAt: string;
+  mustChangePassword: boolean;
 }
 
 export interface DepartmentDto {
@@ -31,6 +32,9 @@ export interface MemberDto {
   role: Role;
   departmentId?: string;
   department?: Pick<DepartmentDto, 'id' | 'name' | 'shortName'>;
+  email?: string;
+  accountEnabled?: boolean;
+  mustChangePassword?: boolean;
 }
 
 export interface TaskDto {

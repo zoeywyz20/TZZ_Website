@@ -12,6 +12,7 @@ const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class AuthenticationError extends Error {}
 export class AuthorizationError extends Error {}
+export class PasswordChangeRequiredError extends Error {}
 
 function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
@@ -20,12 +21,14 @@ function hashToken(token: string) {
 export function toAuthUser(profile: {
   id: string; name: string; email: string; avatar: string | null; role: string; phone: string | null;
   studentId: string | null; departmentId: string | null; joinedAt: Date; createdAt: Date; updatedAt: Date;
+  mustChangePassword: boolean;
 }): AuthUser {
   return {
     id: profile.id, name: profile.name, email: profile.email, avatar: profile.avatar ?? undefined,
     role: profile.role as Role, phone: profile.phone ?? undefined, studentId: profile.studentId ?? undefined,
     departmentId: profile.departmentId ?? undefined, joinedAt: profile.joinedAt.toISOString(),
     createdAt: profile.createdAt.toISOString(), updatedAt: profile.updatedAt.toISOString(),
+    mustChangePassword: profile.mustChangePassword,
   };
 }
 
@@ -65,6 +68,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     await clearSessionCookie();
     return null;
   }
+  if (!session.profile.accountEnabled) {
+    await getDb().session.deleteMany({ where: { profileId: session.profileId } });
+    await clearSessionCookie();
+    return null;
+  }
   return toAuthUser(session.profile);
 }
 
@@ -75,7 +83,13 @@ export async function requireUser() {
 }
 
 export async function requirePermission(action: Action) {
-  const user = await requireUser();
+  const user = await requireReadyUser();
   if (!can(user as Profile, action)) throw new AuthorizationError('你没有执行此操作的权限。');
+  return user;
+}
+
+export async function requireReadyUser() {
+  const user = await requireUser();
+  if (user.mustChangePassword) throw new PasswordChangeRequiredError('请先修改初始密码。');
   return user;
 }

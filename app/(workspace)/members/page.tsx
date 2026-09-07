@@ -8,6 +8,9 @@ import { RoleLabel, Role } from '@/types';
 import type { MemberDto } from '@/lib/api/contracts';
 import { workspaceApi } from '@/lib/api/workspace';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/use-auth';
+import { canManageMembers } from '@/lib/permissions';
+import type { DepartmentDto } from '@/lib/api/contracts';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 8 },
@@ -22,12 +25,29 @@ export default function MembersPage() {
   const [profiles, setProfiles] = useState<MemberDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [newMember, setNewMember] = useState({ name: '', email: '', role: Role.MEMBER, departmentId: '' });
+  const { user } = useAuth();
+  const canManage = canManageMembers(user);
 
   useEffect(() => {
     let active = true;
     workspaceApi.members().then((members) => { if (active) setProfiles(members); }).catch(() => { if (active) setError('成员加载失败，请稍后重试。'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => { if (canManage) workspaceApi.departments().then(setDepartments).catch(() => undefined); }, [canManage]);
+
+  async function createMember(event: React.FormEvent) {
+    event.preventDefault(); setError('');
+    try { await workspaceApi.createMember({ ...newMember, departmentId: newMember.departmentId || null }); setNewMember({ name: '', email: '', role: Role.MEMBER, departmentId: '' }); setCreating(false); setProfiles(await workspaceApi.members()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '开户失败。'); }
+  }
+  async function accountAction(id: string, action: 'enable' | 'disable' | 'reset-password') {
+    try { await workspaceApi.updateMemberAccount(id, action); setProfiles(await workspaceApi.members()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '操作失败。'); }
+  }
 
   const filteredMembers = useMemo(() => {
     let result = [...profiles];
@@ -46,8 +66,10 @@ export default function MembersPage() {
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
         <motion.div variants={fadeUp} className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight mb-1">成员</h1>
-          <p className="text-sm text-muted-foreground">团总支全体成员 ({profiles.length}人)</p>
+          <div className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">团总支全体成员 ({profiles.length}人)</p>{canManage && <button onClick={() => setCreating((value) => !value)} className="h-9 rounded-lg bg-foreground px-3 text-sm text-background">创建账号</button>}</div>
         </motion.div>
+
+        {creating && <motion.form variants={fadeUp} onSubmit={createMember} className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-4 sm:grid-cols-2"><input required value={newMember.name} onChange={(e) => setNewMember({ ...newMember, name: e.target.value })} placeholder="姓名" className="h-10 rounded-lg border px-3 text-sm" /><input required type="email" value={newMember.email} onChange={(e) => setNewMember({ ...newMember, email: e.target.value })} placeholder="name@stu.njnu.edu.cn" className="h-10 rounded-lg border px-3 text-sm" /><select value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value as Role })} className="h-10 rounded-lg border px-3 text-sm">{Object.values(Role).map((role) => <option key={role} value={role}>{RoleLabel[role]}</option>)}</select><select value={newMember.departmentId} onChange={(e) => setNewMember({ ...newMember, departmentId: e.target.value })} className="h-10 rounded-lg border px-3 text-sm"><option value="">不分配部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select><div className="sm:col-span-2 flex items-center justify-between"><span className="text-xs text-muted-foreground">新账号将使用管理员配置的初始密码，并在首次登录时强制修改。</span><button className="h-9 rounded-lg bg-foreground px-4 text-sm text-background">开通账号</button></div></motion.form>}
 
         {/* Filters */}
         <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -103,8 +125,10 @@ export default function MembersPage() {
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
                     <span>{dept?.name ?? '未分配部门'}</span>
+                    {canManage && <span>{member.email}</span>}
                   </div>
                 </div>
+                {canManage && <div className="flex shrink-0 gap-2"><button onClick={() => accountAction(member.id, member.accountEnabled === false ? 'enable' : 'disable')} className="text-xs text-muted-foreground hover:text-foreground">{member.accountEnabled === false ? '启用' : '禁用'}</button><button onClick={() => accountAction(member.id, 'reset-password')} className="text-xs text-muted-foreground hover:text-foreground">重置密码</button></div>}
               </div>
             );
           })}

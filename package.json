@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "prisma generate && next build --webpack",
+    "build": "prisma generate && CIRCLE_NODE_TOTAL=1 next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -16,6 +16,7 @@
     "verify:storage": "tsx scripts/verify-file-storage.ts",
     "verify:folders": "tsx scripts/verify-folder-import-design.ts",
     "verify:files:integration": "tsx scripts/verify-files-integration.ts",
+    "verify:accounts": "tsx scripts/verify-account-policy.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
