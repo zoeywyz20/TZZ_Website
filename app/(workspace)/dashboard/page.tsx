@@ -98,11 +98,11 @@ export default function DashboardPage() {
         {/* ────────────────────────────────────────────────────
             2. CORE STATS — Typography-driven & Divider Separated
         ──────────────────────────────────────────────────── */}
-        <motion.div variants={fadeUp} className="flex flex-wrap items-baseline gap-y-6">
+        <motion.div variants={fadeUp} className="flex flex-wrap items-start gap-y-6">
           {stats.map((stat, i) => (
-            <div key={stat.label} className="flex items-center">
+            <div key={stat.label} className="flex items-start">
               {i > 0 && (
-                <div className="w-px h-8 bg-border/60 mx-6 lg:mx-10 self-center" />
+                <div className="w-px h-8 bg-border/60 mx-6 lg:mx-10 mt-2" />
               )}
               <div className="group">
                 <span className={cn(
