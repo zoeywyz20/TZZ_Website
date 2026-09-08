@@ -146,7 +146,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@stu.njnu.edu.cn"
+                placeholder="学号@njnu.edu.cn"
                 className="w-full h-[50px] px-4 rounded-lg border border-border bg-white text-[15px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-foreground focus:ring-0 transition-colors duration-200"
                 required
                 autoFocus
