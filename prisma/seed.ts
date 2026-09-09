@@ -26,7 +26,7 @@ const departments = [
 const profiles = [
   { id: 'user-wyz', name: '吴媛智', email: 'wyz@example.local', role: Role.SECRETARY, phone: null, studentId: null, departmentId: null, joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-bjr', name: '鲍君睿', email: 'bjr@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-org', joinedAt: new Date('2025-09-01T00:00:00Z') },
-  { id: 'user-qhh', name: '覃欢欢', email: 'qhh@example.local', role: Role.VICE_MINISTER, phone: null, studentId: null, departmentId: 'dept-org', joinedAt: new Date('2025-09-01T00:00:00Z') },
+  { id: 'user-qhh', name: '章欢欢', email: 'qhh@example.local', role: Role.VICE_MINISTER, phone: null, studentId: null, departmentId: 'dept-org', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-dyx', name: '丁怡萱', email: 'dyx@example.local', role: Role.DEPUTY_SECRETARY, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-dcy', name: '邓陈彦', email: 'djy@example.local', role: Role.MINISTER, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-01T00:00:00Z') },
   { id: 'user-wj', name: '王娟', email: 'wj@example.local', role: Role.VICE_MINISTER, phone: null, studentId: null, departmentId: 'dept-theory', joinedAt: new Date('2025-09-15T00:00:00Z') },
