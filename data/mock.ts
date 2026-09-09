@@ -33,7 +33,7 @@ export const departments: Department[] = [
     shortName: '组建部',
     description: '负责团组织建设、团员管理、组织关系等工作',
     leaderId: 'user-bjr',
-    memberCount: 2,
+    memberCount: 3,
     createdAt: '2025-09-01T00:00:00Z',
   },
   {
@@ -67,7 +67,7 @@ export const profiles: Profile[] = [
     role: Role.SECRETARY,
     phone: '138****1234',
     studentId: '20260101',
-    departmentId: undefined,
+    departmentId: 'dept-org',
     joinedAt: '2025-09-01T00:00:00Z',
     createdAt: '2025-09-01T00:00:00Z',
     updatedAt: '2026-08-01T00:00:00Z',
