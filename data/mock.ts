@@ -107,7 +107,7 @@ export const profiles: Profile[] = [
   },
   {
     id: 'user-qhh',
-    name: '章欢欢',
+    name: '覃欢欢',
     email: 'qinhuanhuan@ocean.edu.cn',
     role: Role.VICE_MINISTER,
     studentId: '20260105',
