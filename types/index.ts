@@ -20,7 +20,7 @@ export const RoleLabel: Record<Role, string> = {
   [Role.DEPUTY_SECRETARY]: '副书记',
   [Role.MINISTER]: '部长',
   [Role.VICE_MINISTER]: '副部长',
-  [Role.MEMBER]: '成员',
+  [Role.MEMBER]: '部员',
   [Role.GUEST]: '访客',
 };
 

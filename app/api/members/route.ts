@@ -9,7 +9,8 @@ import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-const createMemberSchema = z.object({ name: z.string().trim().min(1).max(100), email: z.string().trim().email().max(254), role: z.nativeEnum(Role), departmentId: z.string().uuid().nullable() });
+const openableRoles = [Role.DEPUTY_SECRETARY, Role.MINISTER, Role.VICE_MINISTER, Role.MEMBER, Role.GUEST] as const;
+const createMemberSchema = z.object({ name: z.string().trim().min(1).max(100), email: z.string().trim().email().max(254), role: z.enum(openableRoles), departmentId: z.string().uuid().nullable() });
 
 function failure(error: unknown) {
   if (error instanceof AuthenticationError) return apiError('UNAUTHORIZED', error.message, 401);

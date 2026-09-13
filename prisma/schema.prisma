@@ -147,7 +147,7 @@ model RegistrationApplication {
   studentId             String             @map("student_id")
   email                 String             @unique
   requestedDepartmentId String?            @map("requested_department_id")
-  status                RegistrationStatus @default(EMAIL_PENDING)
+  status                RegistrationStatus @default(PENDING)
   emailVerifiedAt       DateTime?          @map("email_verified_at")
   verificationCodeHash  String?            @map("verification_code_hash")
   verificationExpiresAt DateTime?          @map("verification_expires_at")
