@@ -20,6 +20,10 @@ const fileInclude = {
 
 export function canAccessFile(user: AuthUser, file: NonNullable<FileWithAccess>): boolean {
   if ([Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY].includes(user.role)) return true;
+  // SPECIFIED is used for staged archival material.  Until explicit ACL support
+  // is added, it is intentionally leadership-only rather than accidentally
+  // inheriting department visibility.
+  if (file.visibility === Visibility.SPECIFIED) return false;
   if (user.role === Role.GUEST) return false;
   const participates = file.task?.assignees.some((assignee) => assignee.profileId === user.id) ?? false;
   const sameDepartment = Boolean(user.departmentId && file.departmentId === user.departmentId);
@@ -60,10 +64,11 @@ function fileVisibilityWhere(user: AuthUser): Prisma.FileRecordWhereInput {
   if ([Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY].includes(user.role)) return {};
   if (user.role === Role.GUEST) return { id: '__guest_cannot_view_files__' };
   const participates = { task: { assignees: { some: { profileId: user.id } } } };
+  const nonStaged = { visibility: { not: Visibility.SPECIFIED } };
   if ([Role.MINISTER, Role.VICE_MINISTER].includes(user.role)) {
-    return { OR: [{ departmentId: user.departmentId ?? '__no_department__' }, participates] };
+    return { AND: [nonStaged, { OR: [{ departmentId: user.departmentId ?? '__no_department__' }, participates] }] };
   }
-  return { OR: [{ uploaderId: user.id }, participates, { visibility: Visibility.ALL }] };
+  return { AND: [nonStaged, { OR: [{ uploaderId: user.id }, participates, { visibility: Visibility.ALL }] }] };
 }
 
 export async function findFileForAccess(id: string) {

@@ -17,6 +17,7 @@
     "verify:folders": "tsx scripts/verify-folder-import-design.ts",
     "verify:files:integration": "tsx scripts/verify-files-integration.ts",
     "preview:legacy-materials": "tsx scripts/preview-legacy-materials-import.ts",
+    "import:legacy-materials": "tsx scripts/import-legacy-materials.ts",
     "verify:accounts": "tsx scripts/verify-account-policy.ts",
     "verify:registration": "tsx scripts/verify-registration-policy.ts",
     "postinstall": "prisma generate"

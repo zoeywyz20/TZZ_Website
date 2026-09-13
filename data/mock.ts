@@ -6,12 +6,10 @@ import {
   type Profile,
   type Department,
   type Task,
-  type Deliverable,
   type FileRecord,
   type ReviewRecord,
   type Notification,
   type ActivityLog,
-  type Template,
   type Tag,
   type DashboardStats,
   type AttentionItem,
@@ -968,19 +966,6 @@ export const activityLogs: ActivityLog[] = [
     targetName: '团总支换届资料归档',
     createdAt: daysAgo(2),
   },
-];
-
-// ---------- Templates ----------
-
-export const templates: Template[] = [
-  { id: 'tmpl-1', name: '活动方案模板', category: '活动', description: '标准活动策划方案格式模板', fileId: 'tmpl-file-1', downloadCount: 23, createdAt: daysAgo(90), updatedAt: daysAgo(30) },
-  { id: 'tmpl-2', name: '新闻稿模板', category: '宣传', description: '校园活动新闻稿写作模板', fileId: 'tmpl-file-2', downloadCount: 18, createdAt: daysAgo(90), updatedAt: daysAgo(60) },
-  { id: 'tmpl-3', name: '会议纪要模板', category: '行政', description: '团总支会议纪要格式模板', fileId: 'tmpl-file-3', downloadCount: 12, createdAt: daysAgo(90), updatedAt: daysAgo(45) },
-  { id: 'tmpl-4', name: '工作总结模板', category: '行政', description: '学期/年度工作总结报告模板', fileId: 'tmpl-file-4', downloadCount: 31, createdAt: daysAgo(90), updatedAt: daysAgo(20) },
-  { id: 'tmpl-5', name: '人员名单模板', category: '行政', description: '标准人员统计表格模板', fileId: 'tmpl-file-5', downloadCount: 27, createdAt: daysAgo(90), updatedAt: daysAgo(15) },
-  { id: 'tmpl-6', name: '社会实践报告模板', category: '实践', description: '暑期社会实践总结报告模板', fileId: 'tmpl-file-6', downloadCount: 15, createdAt: daysAgo(90), updatedAt: daysAgo(10) },
-  { id: 'tmpl-7', name: '主题团日材料模板', category: '活动', description: '主题团日全套材料模板（方案+总结+照片要求）', fileId: 'tmpl-file-7', downloadCount: 35, createdAt: daysAgo(90), updatedAt: daysAgo(5) },
-  { id: 'tmpl-8', name: '团员信息表模板', category: '组织', description: '团员基本信息采集表', fileId: 'tmpl-file-8', downloadCount: 20, createdAt: daysAgo(90), updatedAt: daysAgo(25) },
 ];
 
 // ---------- Dashboard Stats ----------
