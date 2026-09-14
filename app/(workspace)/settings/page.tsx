@@ -146,9 +146,8 @@ export default function SettingsPage() {
               </div>
             </form>
           ) : (
-            <div className="flex items-center justify-between py-2 border-t border-border/30 text-xs text-muted-foreground">
+            <div className="py-2 border-t border-border/30 text-xs text-muted-foreground">
               <span>密码状态：<span className="text-success font-medium">已设置</span></span>
-              <span>上次修改：30 天前</span>
             </div>
           )}
         </motion.section>
@@ -167,9 +166,7 @@ export default function SettingsPage() {
         <motion.section variants={fadeUp} className="bg-white rounded-xl border border-border/60 p-6">
           <h2 className="text-[15px] font-semibold text-foreground mb-5">系统信息</h2>
           <div className="grid gap-3">
-            <SettingsRow label="版本" value="v1.0.0-beta" />
-            <SettingsRow label="环境" value="开发模式 (Mock)" />
-            <SettingsRow label="数据存储" value="本地 Storage Adapter" />
+            <SettingsRow label="当前版本" value="试用版" />
           </div>
         </motion.section>
       </motion.div>
