@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Search, Filter, ArrowUpDown, Clock, CheckCircle2, AlertTriangle, Circle } from 'lucide-react';
 import { cn, getDeadlineStatus, formatDate } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { TaskStatus, TaskStatusLabel, TaskPriority, TaskPriorityLabel } from '@/types';
-import { tasks, getProfileById, getDepartmentById, getTasksForUser } from '@/data/mock';
+import { workspaceApi } from '@/lib/api/workspace';
+import type { TaskDto } from '@/lib/api/contracts';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
 type TabFilter = 'all' | 'pending' | 'in_progress' | 'under_review' | 'completed';
 
-const tabMap: Record<TabFilter, TaskStatus[]> = {
+const tabMap: Record<TabFilter, string[]> = {
   all: [],
   pending: [TaskStatus.ASSIGNED],
   in_progress: [TaskStatus.IN_PROGRESS, TaskStatus.REVISION_REQUIRED],
@@ -30,11 +31,9 @@ export default function MyTasksPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [myTasks, setMyTasks] = useState<TaskDto[]>([]);
 
-  const myTasks = useMemo(() => {
-    if (!user) return [];
-    return getTasksForUser(user.id);
-  }, [user]);
+  useEffect(() => { if (!user) return; void workspaceApi.tasks().then(setMyTasks).catch(() => setMyTasks([])); }, [user]);
 
   const filteredTasks = useMemo(() => {
     let result = myTasks;
@@ -109,8 +108,8 @@ export default function MyTasksPage() {
           ) : (
             filteredTasks.map((task) => {
               const deadline = getDeadlineStatus(task.finalDeadline);
-              const dept = getDepartmentById(task.departmentId);
-              const leader = getProfileById(task.leaderId);
+              const dept = task.department;
+              const leader = task.leader;
               const completedDels = task.deliverables.filter((d) => d.status === 'approved').length;
               const totalDels = task.deliverables.length;
 
@@ -153,7 +152,7 @@ export default function MyTasksPage() {
                             <span className="text-border">·</span>
                             <span>负责人 {leader?.name}</span>
                             <span className="text-border">·</span>
-                            <span>{TaskStatusLabel[task.status]}</span>
+                            <span>{TaskStatusLabel[task.status as TaskStatus]}</span>
                             <span className="text-border">·</span>
                             <span>{completedDels}/{totalDels} 交付项</span>
                           </div>

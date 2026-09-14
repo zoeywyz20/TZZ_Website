@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
-import { tasks, getDepartmentById } from '@/data/mock';
+import { workspaceApi } from '@/lib/api/workspace';
+import type { TaskDto } from '@/lib/api/contracts';
 import { TaskPriority } from '@/types';
 
 const fadeUp = {
@@ -16,6 +17,8 @@ const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [tasks, setTasks] = useState<TaskDto[]>([]);
+  useEffect(() => { void workspaceApi.tasks().then(setTasks).catch(() => setTasks([])); }, []);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -72,14 +75,14 @@ export default function CalendarPage() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(task);
 
-      const iKey = new Date(task.internalDeadline).toDateString();
+      const iKey = task.internalDeadline ? new Date(task.internalDeadline).toDateString() : key;
       if (iKey !== key) {
         if (!map.has(iKey)) map.set(iKey, []);
         // Don't duplicate
       }
     });
     return map;
-  }, []);
+  }, [tasks]);
 
   return (
     <div className="p-6 lg:p-10 max-w-[1000px] mx-auto">
