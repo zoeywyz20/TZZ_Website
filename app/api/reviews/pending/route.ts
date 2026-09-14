@@ -1,0 +1,3 @@
+import { apiError, apiSuccess } from '@/lib/api/response'; import { AuthenticationError, AuthorizationError, PasswordChangeRequiredError, requirePermission } from '@/lib/auth'; import { pendingReviews } from '@/lib/server/reviews';
+export const runtime = 'nodejs'; export const dynamic = 'force-dynamic';
+export async function GET() { try { const user = await requirePermission('review:approve'); return apiSuccess(await pendingReviews(user)); } catch (e) { if (e instanceof AuthenticationError) return apiError('UNAUTHORIZED', e.message, 401); if (e instanceof PasswordChangeRequiredError || e instanceof AuthorizationError) return apiError('FORBIDDEN', '无权查看审核队列。', 403); return apiError('REQUEST_FAILED', '读取审核队列失败。', 500); } }
