@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     if (error instanceof AuthorizationError) return apiError('FORBIDDEN', error.message, 403);
     if (error instanceof Error && error.message === 'DEPARTMENT_NOT_FOUND') return apiError('DEPARTMENT_NOT_FOUND', '所选部门不存在。', 400);
     if (error instanceof Error && error.message === 'LEADER_NOT_FOUND') return apiError('LEADER_NOT_FOUND', '所选负责人不存在。', 400);
+    if (error instanceof Error && error.message === 'DEPARTMENT_SCOPE_FORBIDDEN') return apiError('FORBIDDEN', '副书记只能创建本部门任务，并指定本部门负责人。', 403);
     return apiError('REQUEST_FAILED', '暂时无法创建任务。', 500);
   }
 }

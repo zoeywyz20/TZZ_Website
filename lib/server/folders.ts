@@ -9,7 +9,7 @@ type UpdateFolderInput = { name?: string; parentId?: string | null; departmentId
 const LEGACY_REVIEW_ROOT = '历史材料（暂未开放）';
 
 function isArchiveAdministrator(user: AuthUser) {
-  return [Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY].includes(user.role);
+  return [Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role);
 }
 
 export function canReadFolder(user: AuthUser, folder: { departmentId: string | null }) {
@@ -20,7 +20,7 @@ export function canReadFolder(user: AuthUser, folder: { departmentId: string | n
 
 export function canManageFolder(user: AuthUser, folder: { departmentId: string | null }) {
   if (isArchiveAdministrator(user)) return true;
-  return user.role === Role.MINISTER && Boolean(user.departmentId) && folder.departmentId === user.departmentId;
+  return [Role.DEPUTY_SECRETARY, Role.MINISTER].includes(user.role) && Boolean(user.departmentId) && folder.departmentId === user.departmentId;
 }
 
 export async function listFolders(user: AuthUser, filters: { parentId?: string | null; departmentId?: string }) {
@@ -71,12 +71,12 @@ export async function deleteFolder(user: AuthUser, id: string) {
 }
 
 async function folderContext(user: AuthUser, input: { parentId?: string | null; departmentId?: string | null }) {
-  const isAdmin = [Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY].includes(user.role);
+  const isAdmin = [Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role);
   const parent = input.parentId ? await getDb().folder.findUnique({ where: { id: input.parentId } }) : null;
   if (input.parentId && !parent) throw new Error('FOLDER_NOT_FOUND');
   if (parent && !isArchiveAdministrator(user) && await isLockedArchiveFolder(parent.id)) throw new Error('FOLDER_FORBIDDEN');
   const departmentId = parent?.departmentId ?? input.departmentId ?? (isAdmin ? null : user.departmentId);
-  if (!isAdmin && (user.role !== Role.MINISTER || !user.departmentId || departmentId !== user.departmentId)) throw new Error('FOLDER_FORBIDDEN');
+  if (!isAdmin && (![Role.DEPUTY_SECRETARY, Role.MINISTER].includes(user.role) || !user.departmentId || departmentId !== user.departmentId)) throw new Error('FOLDER_FORBIDDEN');
   if (parent && parent.departmentId !== departmentId) throw new Error('FOLDER_SCOPE_MISMATCH');
   return { departmentId };
 }

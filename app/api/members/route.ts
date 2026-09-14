@@ -4,6 +4,7 @@ import { apiError, apiSuccess } from '@/lib/api/response';
 import { AccountPolicyError, getInitialAccountPassword, requireAllowedAccountEmail } from '@/lib/server/account-policy';
 import { AuthenticationError, AuthorizationError, PasswordChangeRequiredError, requirePermission, requireReadyUser } from '@/lib/auth';
 import { can } from '@/lib/permissions';
+import { Role as AppRole } from '@/types';
 import { getDb } from '@/lib/db';
 import { z } from 'zod';
 
@@ -27,7 +28,8 @@ export async function GET() {
     const user = await requireReadyUser();
     if (!can(user, 'member:view')) throw new AuthorizationError('你没有查看成员的权限。');
     const manage = can(user, 'member:manage');
-    const members = await getDb().profile.findMany({ select: { id: true, name: true, email: true, avatar: true, role: true, departmentId: true, accountEnabled: true, mustChangePassword: true, department: { select: { id: true, name: true, shortName: true } } }, orderBy: { joinedAt: 'asc' } });
+    const canViewAcrossDepartments = [AppRole.SUPER_ADMIN, AppRole.SECRETARY].includes(user.role);
+    const members = await getDb().profile.findMany({ where: canViewAcrossDepartments ? undefined : { departmentId: user.departmentId ?? '__no_department__' }, select: { id: true, name: true, email: true, avatar: true, role: true, departmentId: true, accountEnabled: true, mustChangePassword: true, department: { select: { id: true, name: true, shortName: true } } }, orderBy: { joinedAt: 'asc' } });
     return apiSuccess(members.map((item) => ({ id: item.id, name: item.name, avatar: item.avatar ?? undefined, role: item.role, departmentId: item.departmentId ?? undefined, department: item.department ?? undefined, ...(manage ? { email: item.email, accountEnabled: item.accountEnabled, mustChangePassword: item.mustChangePassword } : {}) })));
   } catch (error) { return failure(error); }
 }

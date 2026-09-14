@@ -50,13 +50,13 @@ const permissionMatrix: Record<Role, Set<Action>> = {
     'settings:manage', 'settings:view',
   ]),
   [Role.DEPUTY_SECRETARY]: new Set<Action>([
-    'task:create', 'task:edit', 'task:assign', 'task:view_all',
+    'task:create', 'task:edit', 'task:assign',
     'task:view_department', 'task:view_own',
-    'file:upload', 'file:download', 'file:delete', 'file:view_all', 'file:view_department',
+    'file:upload', 'file:download', 'file:delete', 'file:view_department',
     'review:approve', 'review:reject',
     'member:view',
     'department:view',
-    'template:manage', 'template:view',
+    'template:view',
     'settings:view',
   ]),
   [Role.MINISTER]: new Set<Action>([
@@ -120,5 +120,5 @@ export function canViewAllTasks(user: PermissionUser | null): boolean {
 }
 
 export function isLeadership(role: Role): boolean {
-  return [Role.SUPER_ADMIN, Role.SECRETARY, Role.DEPUTY_SECRETARY, Role.MINISTER].includes(role);
+  return [Role.SUPER_ADMIN, Role.SECRETARY, Role.MINISTER].includes(role);
 }

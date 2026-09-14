@@ -77,6 +77,9 @@ export async function createTask(user: AuthUser, input: CreateTaskInput) {
   ]);
   if (!department) throw new Error('DEPARTMENT_NOT_FOUND');
   if (!leader) throw new Error('LEADER_NOT_FOUND');
+  if (user.role === Role.DEPUTY_SECRETARY) {
+    if (!user.departmentId || input.departmentId !== user.departmentId || leader.departmentId !== user.departmentId || input.visibility === 'ALL') throw new Error('DEPARTMENT_SCOPE_FORBIDDEN');
+  }
 
   const task = await db.$transaction((tx) => tx.task.create({
     data: {
