@@ -99,6 +99,7 @@ model Department {
   files   FileRecord[]
   folders Folder[]
   tasks   Task[]
+  archiveItems ArchiveItem[]
   requestedRegistrations RegistrationApplication[] @relation("RegistrationRequestedDepartment")
   approvedRegistrations RegistrationApplication[] @relation("RegistrationApprovedDepartment")
 
@@ -138,6 +139,7 @@ model Profile {
   reviewedRegistrations RegistrationApplication[] @relation("RegistrationReviewer")
   auditLogs           AuditLog[] @relation("AuditActor")
   deletedTasks        Task[]     @relation("TaskDeleter")
+  archivedItems       ArchiveItem[] @relation("ArchiveActor")
 
   @@index([departmentId])
   @@map("profiles")
@@ -242,6 +244,7 @@ model Task {
   files       FileRecord[]
   submissions Submission[]
   reviews     ReviewRecord[]
+  archiveItems ArchiveItem[]
   deleter     Profile?      @relation("TaskDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
 
   @@index([departmentId])
@@ -326,6 +329,7 @@ model FileRecord {
   submissions Submission[]
   reviews     ReviewRecord[]
   importRecord ImportRecord?
+  archiveItems ArchiveItem[]
 
   @@index([uploaderId])
   @@index([taskId])
@@ -349,10 +353,34 @@ model Folder {
   children   Folder[]     @relation("FolderTree")
   department Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   files      FileRecord[]
+  archiveItems ArchiveItem[]
 
   @@index([parentId])
   @@index([departmentId])
   @@map("folders")
+}
+
+model ArchiveItem {
+  id            String   @id @default(uuid())
+  taskId        String   @map("task_id")
+  fileId        String   @map("file_id")
+  versionNumber Int      @map("version_number")
+  departmentId  String?  @map("department_id")
+  folderId      String?  @map("folder_id")
+  archivedBy    String   @map("archived_by")
+  archivedAt    DateTime @default(now()) @map("archived_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  task       Task       @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  file       FileRecord @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  folder     Folder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  actor      Profile    @relation("ArchiveActor", fields: [archivedBy], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, fileId, versionNumber])
+  @@index([taskId, archivedAt])
+  @@index([fileId, versionNumber])
+  @@map("archive_items")
 }
 
 model ImportRecord {

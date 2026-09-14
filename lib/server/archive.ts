@@ -1,0 +1,9 @@
+import 'server-only';
+import { FileStatus, TaskStatus } from '@/generated/prisma/client';
+import { getDb } from '@/lib/db';
+import type { AuthUser } from '@/lib/api/contracts';
+import { Role } from '@/types';
+export async function archiveTask(user: AuthUser, taskId: string, input: { fileIds?: string[]; overrideReason?: string }) {
+  if (![Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role)) throw new Error('ARCHIVE_FORBIDDEN');
+  return getDb().$transaction(async (tx) => { const task = await tx.task.findFirst({ where: { id: taskId, deletedAt: null }, include: { deliverables: true, files: { where: { deletedAt: null } } } }); if (!task) throw new Error('TASK_NOT_FOUND'); if (task.status === TaskStatus.ARCHIVED) throw new Error('TASK_ALREADY_ARCHIVED'); const incomplete = task.deliverables.some(d => d.required && d.status !== 'approved'); if (incomplete && !input.overrideReason?.trim()) throw new Error('DELIVERABLES_NOT_APPROVED'); const candidates = task.files.filter(f => f.status === FileStatus.APPROVED && (!input.fileIds || input.fileIds.includes(f.id))); if (!candidates.length) throw new Error('NO_ARCHIVE_FILES'); await tx.archiveItem.createMany({ data: candidates.map(f => ({ taskId, fileId: f.id, versionNumber: f.currentVersion, departmentId: f.departmentId, folderId: f.folderId, archivedBy: user.id })), skipDuplicates: true }); await tx.fileRecord.updateMany({ where: { id: { in: candidates.map(f => f.id) } }, data: { status: FileStatus.ARCHIVED } }); await tx.task.update({ where: { id: taskId }, data: { status: TaskStatus.ARCHIVED } }); await tx.auditLog.create({ data: { actorId: user.id, action: 'TASK_ARCHIVED', targetType: 'TASK', targetId: taskId, metadata: { fileIds: candidates.map(f => f.id), overrideReason: input.overrideReason?.trim() || undefined } } }); return { taskId, archivedFiles: candidates.map(f => ({ fileId: f.id, versionNumber: f.currentVersion })) }; });
+}
