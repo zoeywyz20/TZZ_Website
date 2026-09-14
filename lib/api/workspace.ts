@@ -14,4 +14,6 @@ export const workspaceApi = {
   },
   task: (id: string) => apiClient<TaskDto>(`/api/tasks/${id}`),
   createTask: (input: unknown) => apiClient<TaskDto>('/api/tasks', { method: 'POST', body: JSON.stringify(input) }),
+  updateTask: (id: string, input: unknown) => apiClient<TaskDto>(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteOrCancelTask: (id: string) => apiClient<{ id: string; action: 'deleted' | 'cancelled' }>(`/api/tasks/${id}`, { method: 'DELETE' }),
 };

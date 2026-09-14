@@ -45,7 +45,7 @@ export interface TaskDto {
   departmentId: string;
   creatorId: string;
   leaderId: string;
-  status: 'DRAFT' | 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REVISION_REQUIRED' | 'APPROVED' | 'ARCHIVED';
+  status: 'DRAFT' | 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'UNDER_REVIEW' | 'REVISION_REQUIRED' | 'APPROVED' | 'ARCHIVED' | 'CANCELLED';
   priority: 'NORMAL' | 'IMPORTANT' | 'URGENT';
   visibility: 'ALL' | 'DEPARTMENT' | 'SPECIFIED';
   internalDeadline?: string;

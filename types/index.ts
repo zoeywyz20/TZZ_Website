@@ -33,6 +33,7 @@ export enum TaskStatus {
   REVISION_REQUIRED = 'REVISION_REQUIRED',
   APPROVED = 'APPROVED',
   ARCHIVED = 'ARCHIVED',
+  CANCELLED = 'CANCELLED',
 }
 
 export const TaskStatusLabel: Record<TaskStatus, string> = {
@@ -44,6 +45,7 @@ export const TaskStatusLabel: Record<TaskStatus, string> = {
   [TaskStatus.REVISION_REQUIRED]: '退回修改',
   [TaskStatus.APPROVED]: '审核通过',
   [TaskStatus.ARCHIVED]: '已归档',
+  [TaskStatus.CANCELLED]: '已取消',
 };
 
 export enum TaskPriority {

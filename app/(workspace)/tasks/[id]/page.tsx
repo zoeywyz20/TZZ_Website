@@ -1,18 +1,22 @@
 'use client';
 
-import { ChangeEvent, use, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, use, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Calendar, Clock, User, Users, CheckCircle2, Circle,
-  Upload, FileText, AlertTriangle, MessageSquare, History,
+  ArrowLeft, CheckCircle2, Circle, Upload, AlertTriangle, MoreHorizontal, Pencil, Trash2,
 } from 'lucide-react';
-import { cn, formatDate, formatRelativeTime, getDeadlineStatus, formatFileSize, getInitials } from '@/lib/utils';
-import { TaskStatusLabel, TaskPriorityLabel, TaskPriority, TaskStatus } from '@/types';
+import { cn, formatDate, formatRelativeTime, getDeadlineStatus } from '@/lib/utils';
+import { TaskStatusLabel, TaskPriorityLabel, TaskPriority, TaskStatus, Visibility, VisibilityLabel, RoleLabel } from '@/types';
 import { workspaceApi } from '@/lib/api/workspace';
-import type { TaskDto } from '@/lib/api/contracts';
+import type { DepartmentDto, MemberDto, TaskDto } from '@/lib/api/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { can } from '@/lib/permissions';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 
 const fadeUp = {
@@ -22,10 +26,19 @@ const fadeUp = {
 
 export default function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [task, setTask] = useState<TaskDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [members, setMembers] = useState<MemberDto[]>([]);
+  const [edit, setEdit] = useState({ title: '', description: '', source: '', departmentId: '', leaderId: '', priority: TaskPriority.NORMAL, visibility: Visibility.DEPARTMENT, internalDeadline: '', finalDeadline: '', tags: '' });
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,6 +66,37 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const collaborators = task.assignees.filter((a) => a.role === 'collaborator').map((a) => a.profile);
   const reviewers = task.assignees.filter((a) => a.role === 'reviewer').map((a) => a.profile);
   const chooseUpload = (deliverableId: string | null = null) => { setUploadTarget(deliverableId); fileInput.current?.click(); };
+  const beginEdit = () => {
+    if (!task) return;
+    setEdit({ title: task.title, description: task.description ?? '', source: task.source ?? '', departmentId: task.departmentId, leaderId: task.leaderId, priority: task.priority as TaskPriority, visibility: task.visibility as Visibility, internalDeadline: task.internalDeadline ? toDateTimeInput(task.internalDeadline) : '', finalDeadline: toDateTimeInput(task.finalDeadline), tags: task.tags.join(', ') });
+    setEditOpen(true);
+    void Promise.all([workspaceApi.departments(), workspaceApi.members()]).then(([nextDepartments, nextMembers]) => { setDepartments(nextDepartments); setMembers(nextMembers); }).catch(() => toast.error('无法加载部门或成员列表。'));
+  };
+  const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!task) return;
+    setSaving(true);
+    try {
+      const updated = await workspaceApi.updateTask(task.id, {
+        title: edit.title, description: edit.description || null, source: edit.source || null, departmentId: edit.departmentId, leaderId: edit.leaderId,
+        priority: edit.priority, visibility: edit.visibility,
+        internalDeadline: edit.internalDeadline ? new Date(edit.internalDeadline).toISOString() : null,
+        finalDeadline: new Date(edit.finalDeadline).toISOString(), tags: edit.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      });
+      setTask(updated); setEditOpen(false); toast.success('任务已更新。');
+    } catch (error) { toast.error(error instanceof Error ? error.message : '任务更新失败。'); }
+    finally { setSaving(false); }
+  };
+  const removeOrCancel = async () => {
+    if (!task) return;
+    setRemoving(true);
+    try {
+      const result = await workspaceApi.deleteOrCancelTask(task.id);
+      toast.success(result.action === 'cancelled' ? '任务已取消，历史记录已保留。' : '任务已移入回收站。');
+      setRemoveOpen(false); router.push('/tasks');
+    } catch (error) { toast.error(error instanceof Error ? error.message : '操作失败。'); }
+    finally { setRemoving(false); }
+  };
   const upload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
     if (!file) return;
@@ -100,6 +144,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
             {/* Action buttons */}
             <div className="flex gap-2 shrink-0">
+              {user && can(user, 'task:edit') && task.status !== TaskStatus.ARCHIVED && task.status !== TaskStatus.CANCELLED && (
+                <button onClick={beginEdit} className="h-9 px-3 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors inline-flex items-center gap-2">
+                  <Pencil className="w-4 h-4" /> 编辑任务
+                </button>
+              )}
               {task.status === TaskStatus.IN_PROGRESS && (
                 <button onClick={() => chooseUpload()} disabled={uploading} className="h-9 px-4 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors inline-flex items-center gap-2 disabled:opacity-50">
                   <Upload className="w-4 h-4" />
@@ -110,6 +159,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 <button className="h-9 px-4 bg-foreground text-background rounded-lg text-sm font-medium hover:bg-foreground/90 transition-colors">
                   审核
                 </button>
+              )}
+              {user && can(user, 'task:delete') && task.status !== TaskStatus.ARCHIVED && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="h-9 w-9 rounded-lg border border-border hover:bg-muted inline-flex items-center justify-center" aria-label="更多任务操作"><MoreHorizontal className="w-4 h-4" /></DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem variant="destructive" disabled={removing || task.status === TaskStatus.CANCELLED} onClick={() => setRemoveOpen(true)}><Trash2 /> {task.status === TaskStatus.CANCELLED ? '已取消' : '取消或删除任务'}</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
@@ -313,9 +370,31 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       </motion.div>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl" showCloseButton={!saving}>
+          <DialogHeader><DialogTitle>编辑任务</DialogTitle><DialogDescription>保存后会保留已有提交、文件和审核记录；交付清单如有历史记录不可在此删除。</DialogDescription></DialogHeader>
+          <form onSubmit={submitEdit} className="space-y-4">
+            <label className="block text-sm font-medium">任务名称<input required value={edit.title} onChange={(event) => setEdit({ ...edit, title: event.target.value })} className="input-field mt-1" /></label>
+            <label className="block text-sm font-medium">任务说明<textarea value={edit.description} onChange={(event) => setEdit({ ...edit, description: event.target.value })} className="input-field mt-1 min-h-24 resize-y" /></label>
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">任务来源<input value={edit.source} onChange={(event) => setEdit({ ...edit, source: event.target.value })} className="input-field mt-1" /></label><label className="text-sm font-medium">优先级<select value={edit.priority} onChange={(event) => setEdit({ ...edit, priority: event.target.value as TaskPriority })} className="input-field mt-1">{Object.entries(TaskPriorityLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">承办部门<select required value={edit.departmentId} onChange={(event) => setEdit({ ...edit, departmentId: event.target.value })} className="input-field mt-1"><option value="">选择部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label><label className="text-sm font-medium">负责人<select required value={edit.leaderId} onChange={(event) => setEdit({ ...edit, leaderId: event.target.value })} className="input-field mt-1"><option value="">选择负责人</option>{members.filter((member) => member.departmentId === edit.departmentId).map((member) => <option key={member.id} value={member.id}>{member.name}（{RoleLabel[member.role]}）</option>)}</select></label></div>
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">内部截止<input type="datetime-local" value={edit.internalDeadline} onChange={(event) => setEdit({ ...edit, internalDeadline: event.target.value })} className="input-field mt-1" /></label><label className="text-sm font-medium">最终截止<input required type="datetime-local" value={edit.finalDeadline} onChange={(event) => setEdit({ ...edit, finalDeadline: event.target.value })} className="input-field mt-1" /></label></div>
+            <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">可见范围<select value={edit.visibility} onChange={(event) => setEdit({ ...edit, visibility: event.target.value as Visibility })} className="input-field mt-1">{Object.entries(VisibilityLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="text-sm font-medium">标签（逗号分隔）<input value={edit.tags} onChange={(event) => setEdit({ ...edit, tags: event.target.value })} className="input-field mt-1" /></label></div>
+            <DialogFooter><button type="button" disabled={saving} onClick={() => setEditOpen(false)} className="h-9 px-4 rounded-lg border border-border text-sm">取消</button><button type="submit" disabled={saving} className="h-9 px-4 rounded-lg bg-foreground text-background text-sm font-medium disabled:opacity-50">{saving ? '保存中…' : '保存修改'}</button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
+        <DialogContent showCloseButton={!removing}>
+          <DialogHeader><DialogTitle>取消或删除任务</DialogTitle><DialogDescription>没有提交、文件或审核记录的任务会移入回收站；已有工作记录的任务只会取消，全部历史将保留。</DialogDescription></DialogHeader>
+          <DialogFooter><button type="button" disabled={removing} onClick={() => setRemoveOpen(false)} className="h-9 px-4 rounded-lg border border-border text-sm">返回</button><button type="button" disabled={removing} onClick={() => void removeOrCancel()} className="h-9 px-4 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">{removing ? '处理中…' : '确认继续'}</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+function toDateTimeInput(value: string) { return new Date(value).toISOString().slice(0, 16); }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (

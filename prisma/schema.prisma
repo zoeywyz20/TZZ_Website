@@ -26,6 +26,7 @@ enum TaskStatus {
   REVISION_REQUIRED
   APPROVED
   ARCHIVED
+  CANCELLED
 }
 
 enum TaskPriority {
@@ -136,6 +137,7 @@ model Profile {
   sessions            Session[]
   reviewedRegistrations RegistrationApplication[] @relation("RegistrationReviewer")
   auditLogs           AuditLog[] @relation("AuditActor")
+  deletedTasks        Task[]     @relation("TaskDeleter")
 
   @@index([departmentId])
   @@map("profiles")
@@ -185,6 +187,9 @@ model AuditLog {
   newStatus             RegistrationStatus? @map("new_status")
   approvedRole          Role?    @map("approved_role")
   approvedDepartmentId  String?  @map("approved_department_id")
+  targetType            String?  @map("target_type")
+  targetId              String?  @map("target_id")
+  metadata              Json?
   createdAt             DateTime @default(now()) @map("created_at")
 
   actor       Profile?                 @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -192,6 +197,7 @@ model AuditLog {
 
   @@index([applicationId, createdAt])
   @@index([actorId, createdAt])
+  @@index([targetType, targetId, createdAt])
   @@map("audit_logs")
 }
 
@@ -225,6 +231,8 @@ model Task {
   tags             String[]     @default([])
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
+  deletedAt        DateTime?    @map("deleted_at")
+  deletedBy        String?      @map("deleted_by")
 
   department  Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   creator     Profile       @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
@@ -234,11 +242,13 @@ model Task {
   files       FileRecord[]
   submissions Submission[]
   reviews     ReviewRecord[]
+  deleter     Profile?      @relation("TaskDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
 
   @@index([departmentId])
   @@index([creatorId])
   @@index([leaderId])
   @@index([status, finalDeadline])
+  @@index([deletedAt])
   @@map("tasks")
 }
 
