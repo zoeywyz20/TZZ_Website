@@ -27,7 +27,7 @@ export function canAccessFile(user: AuthUser, file: NonNullable<FileWithAccess>)
   if (user.role === Role.GUEST) return false;
   const participates = file.task?.assignees.some((assignee) => assignee.profileId === user.id) ?? false;
   const sameDepartment = Boolean(user.departmentId && file.departmentId === user.departmentId);
-  if (user.role === Role.DEPUTY_SECRETARY) return sameDepartment;
+  if (user.role === Role.DEPUTY_SECRETARY) return sameDepartment || file.uploaderId === user.id;
   if ([Role.MINISTER, Role.VICE_MINISTER].includes(user.role)) return sameDepartment || participates;
   return file.uploaderId === user.id || participates || file.visibility === Visibility.ALL;
 }
@@ -64,7 +64,7 @@ export async function listFiles(user: AuthUser, filters: { q?: string; departmen
 function fileVisibilityWhere(user: AuthUser): Prisma.FileRecordWhereInput {
   if ([Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role)) return {};
   if (user.role === Role.GUEST) return { id: '__guest_cannot_view_files__' };
-  if (user.role === Role.DEPUTY_SECRETARY) return { departmentId: user.departmentId ?? '__no_department__' };
+  if (user.role === Role.DEPUTY_SECRETARY) return { OR: [{ departmentId: user.departmentId ?? '__no_department__' }, { uploaderId: user.id }] };
   const participates = { task: { assignees: { some: { profileId: user.id } } } };
   const nonStaged = { visibility: { not: Visibility.SPECIFIED } };
   if ([Role.MINISTER, Role.VICE_MINISTER].includes(user.role)) {
@@ -163,8 +163,9 @@ async function resolveUploadTarget(user: AuthUser, input: UploadInput) {
   if (input.taskId && !task) throw new Error('TASK_NOT_FOUND');
   const isLeadership = [Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role);
   const participates = task?.assignees.some((assignee) => assignee.profileId === user.id) ?? false;
-  if (!isLeadership && task && (user.role === Role.DEPUTY_SECRETARY ? task.departmentId !== user.departmentId : !participates && task.departmentId !== user.departmentId)) throw new Error('FILE_FORBIDDEN');
-  if (input.departmentId && !isLeadership && input.departmentId !== user.departmentId) throw new Error('FILE_FORBIDDEN');
+  const canDeliverAcrossDepartments = user.role === Role.DEPUTY_SECRETARY;
+  if (!isLeadership && !canDeliverAcrossDepartments && task && !participates && task.departmentId !== user.departmentId) throw new Error('FILE_FORBIDDEN');
+  if (input.departmentId && !isLeadership && !canDeliverAcrossDepartments && input.departmentId !== user.departmentId) throw new Error('FILE_FORBIDDEN');
   if (task && input.departmentId && task.departmentId !== input.departmentId) throw new Error('UPLOAD_TARGET_MISMATCH');
   const departmentId = task?.departmentId ?? input.departmentId ?? user.departmentId;
   if (input.visibility === Visibility.DEPARTMENT && !departmentId) throw new Error('DEPARTMENT_REQUIRED');

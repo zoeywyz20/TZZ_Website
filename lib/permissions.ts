@@ -52,7 +52,7 @@ const permissionMatrix: Record<Role, Set<Action>> = {
   [Role.DEPUTY_SECRETARY]: new Set<Action>([
     'task:create', 'task:edit', 'task:assign',
     'task:view_department', 'task:view_own',
-    'file:upload', 'file:download', 'file:delete', 'file:view_department',
+    'file:upload', 'file:download', 'file:view_department',
     'review:approve', 'review:reject',
     'member:view',
     'department:view',
