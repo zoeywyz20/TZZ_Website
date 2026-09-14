@@ -379,6 +379,8 @@ model FileVersion {
   versionNumber Int      @map("version_number")
   storageKey    String   @unique @map("storage_key")
   size          BigInt
+  hash          String?
+  mimeType      String?  @map("mime_type")
   uploaderId    String   @map("uploader_id")
   changeNote    String?  @map("change_note")
   createdAt     DateTime @default(now()) @map("created_at")

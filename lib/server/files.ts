@@ -1,6 +1,7 @@
 import 'server-only';
 
 import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { FileStatus, Prisma, Visibility } from '@/generated/prisma/client';
 import { can } from '@/lib/permissions';
 import type { AuthUser } from '@/lib/api/contracts';
@@ -77,6 +78,10 @@ export async function findFileForAccess(id: string) {
   return getDb().fileRecord.findFirst({ where: { id, deletedAt: null }, include: fileInclude });
 }
 
+async function findFileIncludingDeleted(id: string) {
+  return getDb().fileRecord.findUnique({ where: { id }, include: fileInclude });
+}
+
 export async function uploadFile(user: AuthUser, request: Request, input: UploadInput) {
   const target = await resolveUploadTarget(user, input);
   const contentLengthHeader = request.headers.get('content-length');
@@ -103,7 +108,7 @@ export async function uploadFile(user: AuthUser, request: Request, input: Upload
           visibility: input.visibility,
         },
       });
-      await tx.fileVersion.create({ data: { fileId: file.id, versionNumber: 1, storageKey: staged.storageKey, size: staged.size, uploaderId: user.id } });
+      await tx.fileVersion.create({ data: { fileId: file.id, versionNumber: 1, storageKey: staged.storageKey, size: staged.size, hash: staged.sha256, mimeType: input.mimeType, uploaderId: user.id } });
       if (target.taskId && target.deliverableId) {
         await tx.submission.create({ data: { taskId: target.taskId, deliverableId: target.deliverableId, submitterId: user.id, fileId: file.id, version: 1 } });
         await tx.deliverable.updateMany({ where: { id: target.deliverableId, status: 'pending' }, data: { status: 'submitted' } });
@@ -120,7 +125,73 @@ export async function uploadFile(user: AuthUser, request: Request, input: Upload
 export async function deleteFile(user: AuthUser, file: NonNullable<FileWithAccess>) {
   if (!canDeleteFile(user, file)) throw new Error('FILE_FORBIDDEN');
   await getDb().fileRecord.update({ where: { id: file.id }, data: { deletedAt: new Date(), deletedBy: user.id } });
-  await deleteStoredFile(file.storageKey);
+}
+
+function canManageTrash(user: AuthUser) { return [Role.SUPER_ADMIN, Role.SECRETARY].includes(user.role); }
+
+export async function listTrash(user: AuthUser) {
+  if (!canManageTrash(user)) throw new Error('FILE_FORBIDDEN');
+  const files = await getDb().fileRecord.findMany({ where: { deletedAt: { not: null } }, include: fileInclude, orderBy: { deletedAt: 'desc' } });
+  return files.map((file) => ({ ...serializeFile(file, user), deletedAt: file.deletedAt?.toISOString(), deletedBy: file.deletedBy ?? undefined }));
+}
+
+export async function restoreFile(user: AuthUser, id: string) {
+  if (!canManageTrash(user)) throw new Error('FILE_FORBIDDEN');
+  const file = await findFileIncludingDeleted(id);
+  if (!file || !file.deletedAt) throw new Error('FILE_NOT_FOUND');
+  await openStoredFile(file.storageKey);
+  return getDb().fileRecord.update({ where: { id }, data: { deletedAt: null, deletedBy: null } });
+}
+
+export async function purgeFile(user: AuthUser, id: string) {
+  if (!canManageTrash(user)) throw new Error('FILE_FORBIDDEN');
+  const file = await findFileIncludingDeleted(id);
+  if (!file || !file.deletedAt) throw new Error('FILE_NOT_FOUND');
+  const keys = await getDb().$transaction(async (tx) => {
+    const [submissions, reviews, versions] = await Promise.all([tx.submission.count({ where: { fileId: id } }), tx.reviewRecord.count({ where: { fileId: id } }), tx.fileVersion.findMany({ where: { fileId: id }, select: { storageKey: true } })]);
+    if (submissions || reviews) throw new Error('FILE_HAS_REFERENCES');
+    await tx.fileRecord.delete({ where: { id } });
+    return [...new Set(versions.map((version) => version.storageKey))];
+  });
+  const failures: string[] = [];
+  for (const key of keys) { try { if (await getDb().fileVersion.count({ where: { storageKey: key } }) === 0) await deleteStoredFile(key); } catch { failures.push(key); } }
+  return { purged: true, pendingStorageCleanup: failures.length };
+}
+
+export async function uploadFileVersion(user: AuthUser, id: string, request: Request, input: { originalFilename: string; mimeType: string; changeNote?: string }) {
+  const file = await findFileForAccess(id);
+  if (!file || !canAccessFile(user, file) || file.status === FileStatus.ARCHIVED) throw new Error('FILE_FORBIDDEN');
+  assertUploadAllowed(input.originalFilename, input.mimeType, request.headers.get('content-length') ? Number(request.headers.get('content-length')) : undefined);
+  const staged = await writeRequestToTemporaryFile(request.body, input.originalFilename);
+  if (file.hash === staged.sha256) { await rm(staged.temporaryPath, { force: true }); return { unchanged: true, currentVersion: file.currentVersion }; }
+  let committed = false;
+  try {
+    await commitTemporaryFile(staged.temporaryPath, staged.storageKey); committed = true;
+    const created = await getDb().$transaction(async (tx) => {
+      const fresh = await tx.fileRecord.findFirst({ where: { id, deletedAt: null }, select: { currentVersion: true, hash: true, status: true } });
+      if (!fresh || fresh.status === FileStatus.ARCHIVED) throw new Error('FILE_FORBIDDEN');
+      if (fresh.hash === staged.sha256) return { unchanged: true as const, currentVersion: fresh.currentVersion };
+      const versionNumber = fresh.currentVersion + 1;
+      await tx.fileVersion.create({ data: { fileId: id, versionNumber, storageKey: staged.storageKey, size: staged.size, hash: staged.sha256, mimeType: input.mimeType, uploaderId: user.id, changeNote: input.changeNote?.trim().slice(0, 1000) || null } });
+      await tx.fileRecord.update({ where: { id }, data: { originalFilename: input.originalFilename, storageKey: staged.storageKey, size: staged.size, hash: staged.sha256, mimeType: input.mimeType, currentVersion: versionNumber } });
+      return { unchanged: false as const, currentVersion: versionNumber };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (created.unchanged) { await deleteStoredFile(staged.storageKey); committed = false; }
+    return created;
+  } catch (error) { if (committed) await deleteStoredFile(staged.storageKey).catch(() => undefined); else await rm(staged.temporaryPath, { force: true }).catch(() => undefined); throw error; }
+}
+
+export async function listFileVersions(user: AuthUser, id: string) {
+  const file = await findFileForAccess(id); if (!file || !canAccessFile(user, file)) throw new Error('FILE_FORBIDDEN');
+  const versions = await getDb().fileVersion.findMany({ where: { fileId: id }, include: { uploader: { select: { id: true, name: true } } }, orderBy: { versionNumber: 'desc' } });
+  return versions.map((version) => ({ id: version.id, versionNumber: version.versionNumber, size: version.size.toString(), hash: version.hash ?? undefined, mimeType: version.mimeType ?? undefined, uploader: version.uploader, changeNote: version.changeNote ?? undefined, createdAt: version.createdAt.toISOString(), isCurrent: version.versionNumber === file.currentVersion }));
+}
+
+export async function contentForFileVersion(user: AuthUser, id: string, versionNumber: number) {
+  const file = await findFileForAccess(id); if (!file || !can(user, 'file:download') || !canAccessFile(user, file)) throw new Error('FILE_FORBIDDEN');
+  const version = await getDb().fileVersion.findUnique({ where: { fileId_versionNumber: { fileId: id, versionNumber } } });
+  if (!version) throw new Error('VERSION_NOT_FOUND');
+  return { file, version, stored: await openStoredFile(version.storageKey) };
 }
 
 export async function contentForFile(user: AuthUser, file: NonNullable<FileWithAccess>) {
