@@ -3,13 +3,14 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Archive, Download, FileSpreadsheet, FileText, Folder, FolderPlus, Grid3X3, Image, List, Search, Trash2, Upload } from 'lucide-react';
+import { Archive, Download, FileSpreadsheet, FileText, Folder, FolderPlus, Grid3X3, History, Image, List, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MAX_FILE_SIZE_BYTES, isAllowedUploadSize } from '@/lib/storage';
 import { cn, formatFileSize, formatRelativeTime } from '@/lib/utils';
 import { FileStatus, FileStatusLabel } from '@/types';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type Department = { id: string; name: string; shortName: string };
 type ApiFile = {
@@ -54,6 +55,10 @@ export default function FilesPage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const versionInput = useRef<HTMLInputElement>(null);
+  const [versionTarget, setVersionTarget] = useState<ApiFile | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<ApiFile | null>(null);
+  const [versions, setVersions] = useState<Array<{ id: string; versionNumber: number; uploader: { name: string }; changeNote?: string; createdAt: string; isCurrent: boolean }>>([]);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -129,6 +134,8 @@ export default function FilesPage() {
     if (!response.ok || !payload.success) { toast.error(payload.error?.message ?? '删除失败。'); return; }
     toast.success('材料已删除。'); void loadFiles();
   };
+  const uploadVersion = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file || !versionTarget) return; const req = new XMLHttpRequest(); req.open('POST', `/api/files/${versionTarget.id}/versions`); req.setRequestHeader('Content-Type', file.type || 'application/octet-stream'); req.setRequestHeader('X-File-Name', encodeURIComponent(file.name)); req.onload = () => { try { const p = JSON.parse(req.responseText) as ApiResponse<{ unchanged?: boolean }>; if (!req.status || !p.success) throw new Error(p.error?.message); toast.success(p.data?.unchanged ? '内容未变化，未创建新版本。' : '已创建新版本。'); void loadFiles(); } catch { toast.error('新版本上传失败。'); } finally { setVersionTarget(null); } }; req.onerror=()=>{toast.error('新版本上传失败。');setVersionTarget(null);}; req.send(file); };
+  const showHistory = async (file: ApiFile) => { try { const r=await fetch(`/api/files/${file.id}/versions`); const p=await r.json() as ApiResponse<typeof versions>; if(!r.ok||!p.success) throw new Error(p.error?.message); setVersions(p.data??[]); setHistoryTarget(file); } catch(e){toast.error(e instanceof Error?e.message:'无法读取版本历史。');} };
 
   const content = useMemo(() => files.map((file) => {
     const Icon = getFileTypeIcon(file.mimeType); const iconColor = getFileTypeColor(file.mimeType);
@@ -140,7 +147,7 @@ export default function FilesPage() {
       <div className="mb-8 flex items-start justify-between gap-4">
         <div><h1 className="text-2xl font-semibold tracking-tight mb-1">材料中心</h1><p className="text-sm text-muted-foreground">浏览和管理团总支材料文件</p></div>
         <div className="flex gap-2"><Link href="/files/trash" className="h-9 px-3 rounded-lg border border-border text-sm inline-flex items-center gap-2"><Trash2 className="w-4 h-4" />回收站</Link><Button variant="outline" onClick={createFolder}><FolderPlus />新建文件夹</Button><Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '选择文件'}</Button></div>
-        <input ref={fileInput} type="file" className="hidden" onChange={onSelectFile} />
+        <input ref={fileInput} type="file" className="hidden" onChange={onSelectFile} /><input ref={versionInput} type="file" className="hidden" onChange={uploadVersion} />
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setPage(1); }} placeholder="跨目录搜索文件名称" className="h-9 w-full pl-9 pr-3 rounded-lg border border-border bg-white text-sm" /></div>
@@ -152,13 +159,13 @@ export default function FilesPage() {
       {selectedUpload && <div className="mb-4 rounded-xl border bg-white p-4 text-sm"><div className="mb-3 font-medium">上传材料：{selectedUpload.name}</div><div className="flex flex-wrap gap-2"><select value={uploadDepartment} onChange={(event) => setUploadDepartment(event.target.value)} className="h-9 rounded border px-2"><option value="">默认所属部门</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select><select value={uploadVisibility} onChange={(event) => setUploadVisibility(event.target.value)} className="h-9 rounded border px-2"><option value="DEPARTMENT">部门可见</option><option value="ALL">公开可见</option></select><Button onClick={() => { upload(selectedUpload); setSelectedUpload(null); }}>确认上传</Button><Button variant="outline" onClick={() => setSelectedUpload(null)}>取消</Button></div></div>}
       {loading ? <div className="text-center py-20 text-sm text-muted-foreground">正在加载材料…</div> : content.length === 0 ? <div className="text-center py-20 text-sm text-muted-foreground">没有找到相关文件</div> : viewMode === 'list' ? <div className="bg-white rounded-xl border border-border/60 overflow-hidden">
         <div className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3 border-b text-xs text-muted-foreground font-medium"><span>文件</span><span>部门</span><span>大小</span><span>版本</span><span>更新时间</span><span>操作</span></div>
-        {content.map(({ file, Icon, iconColor }) => <div key={file.id} className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3.5 border-b last:border-0 items-center"><div className="flex items-center gap-3 min-w-0"><div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}><Icon className="w-4 h-4" /></div><div className="min-w-0"><span className="text-sm truncate block">{file.originalFilename}</span><span className="text-[11px] text-muted-foreground">{file.uploader.name}{searchQuery && file.folder ? ` · ${file.folder.name}` : ''}</span></div></div><span className="text-sm text-muted-foreground">{file.department?.shortName ?? '-'}</span><span className="text-sm text-muted-foreground">{formatFileSize(Number(file.size))}</span><span className="text-sm text-muted-foreground">V{file.currentVersion}</span><span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span><FileActions file={file} onDelete={remove} /></div>)}
-      </div> : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{content.map(({ file, Icon, iconColor }) => <div key={file.id} className="bg-white rounded-xl border border-border/60 p-4"><div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', iconColor)}><Icon className="w-5 h-5" /></div><h3 className="text-sm font-medium truncate mb-1">{file.originalFilename}</h3><p className="text-[11px] text-muted-foreground">{file.uploader.name} · {formatFileSize(Number(file.size))}</p><div className="mt-3 flex items-center justify-between"><Badge variant="outline" className="text-[10px] h-5">{FileStatusLabel[file.status]}</Badge><FileActions file={file} onDelete={remove} /></div></div>)}</div>}
-      {pagination.total > pagination.pageSize && <div className="mt-5 flex items-center justify-end gap-3 text-sm"><span className="text-muted-foreground">共 {pagination.total} 个文件</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button><span>{page}</span><Button variant="outline" size="sm" disabled={!pagination.hasMore} onClick={() => setPage((current) => current + 1)}>下一页</Button></div>}
+        {content.map(({ file, Icon, iconColor }) => <div key={file.id} className="grid grid-cols-[1fr_100px_80px_70px_90px_110px] gap-4 px-5 py-3.5 border-b last:border-0 items-center"><div className="flex items-center gap-3 min-w-0"><div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', iconColor)}><Icon className="w-4 h-4" /></div><div className="min-w-0"><span className="text-sm truncate block">{file.originalFilename}</span><span className="text-[11px] text-muted-foreground">{file.uploader.name}{searchQuery && file.folder ? ` · ${file.folder.name}` : ''}</span></div></div><span className="text-sm text-muted-foreground">{file.department?.shortName ?? '-'}</span><span className="text-sm text-muted-foreground">{formatFileSize(Number(file.size))}</span><span className="text-sm text-muted-foreground">V{file.currentVersion}</span><span className="text-xs text-muted-foreground">{formatRelativeTime(file.updatedAt)}</span><FileActions file={file} onDelete={remove} onVersion={()=>{setVersionTarget(file);versionInput.current?.click();}} onHistory={()=>void showHistory(file)} /></div>)}
+      </div> : <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">{content.map(({ file, Icon, iconColor }) => <div key={file.id} className="bg-white rounded-xl border border-border/60 p-4"><div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', iconColor)}><Icon className="w-5 h-5" /></div><h3 className="text-sm font-medium truncate mb-1">{file.originalFilename}</h3><p className="text-[11px] text-muted-foreground">{file.uploader.name} · {formatFileSize(Number(file.size))}</p><div className="mt-3 flex items-center justify-between"><Badge variant="outline" className="text-[10px] h-5">{FileStatusLabel[file.status]}</Badge><FileActions file={file} onDelete={remove} onVersion={()=>{setVersionTarget(file);versionInput.current?.click();}} onHistory={()=>void showHistory(file)} /></div></div>)}</div>}
+      {pagination.total > pagination.pageSize && <div className="mt-5 flex items-center justify-end gap-3 text-sm"><span className="text-muted-foreground">共 {pagination.total} 个文件</span><Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>上一页</Button><span>{page}</span><Button variant="outline" size="sm" disabled={!pagination.hasMore} onClick={() => setPage((current) => current + 1)}>下一页</Button></div>}<Dialog open={Boolean(historyTarget)} onOpenChange={(o)=>!o&&setHistoryTarget(null)}><DialogContent><DialogHeader><DialogTitle>{historyTarget?.originalFilename} 的版本历史</DialogTitle><DialogDescription>归档版本和历史版本均可下载。</DialogDescription></DialogHeader><div className="space-y-2">{versions.map(v=><div key={v.id} className="flex justify-between text-sm border rounded p-2"><span>V{v.versionNumber}{v.isCurrent?'（当前）':''} · {v.uploader.name}</span><button className="text-primary" onClick={()=>window.open(`/api/files/${historyTarget?.id}/versions/${v.versionNumber}/content`,'_blank','noopener')}>下载</button></div>)}</div></DialogContent></Dialog>
     </motion.div>
   </div>;
 }
 
-function FileActions({ file, onDelete }: { file: ApiFile; onDelete: (file: ApiFile) => void }) {
-  return <div className="flex items-center gap-1"><Button variant="ghost" size="icon-xs" title="下载或查看文件" onClick={() => window.open(`/api/files/${file.id}/content`, '_blank', 'noopener,noreferrer')}><Download /></Button>{file.canDelete && <Button variant="ghost" size="icon-xs" title="删除文件" onClick={() => onDelete(file)}><Trash2 className="text-destructive" /></Button>}</div>;
+function FileActions({ file, onDelete, onVersion, onHistory }: { file: ApiFile; onDelete: (file: ApiFile) => void; onVersion: () => void; onHistory: () => void }) {
+  return <div className="flex items-center gap-1"><Button variant="ghost" size="icon-xs" title="下载或查看文件" onClick={() => window.open(`/api/files/${file.id}/content`, '_blank', 'noopener,noreferrer')}><Download /></Button><Button variant="ghost" size="icon-xs" title="版本历史" onClick={onHistory}><History /></Button>{file.canDelete && <Button variant="ghost" size="icon-xs" title="上传新版本" onClick={onVersion}><Upload /></Button>}{file.canDelete && <Button variant="ghost" size="icon-xs" title="删除文件" onClick={() => onDelete(file)}><Trash2 className="text-destructive" /></Button>}</div>;
 }
