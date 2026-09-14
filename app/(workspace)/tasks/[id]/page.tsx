@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, CheckCircle2, Circle, Upload, AlertTriangle, MoreHorizontal, Pencil, Trash2,
+  ArrowLeft, CheckCircle2, Circle, Upload, AlertTriangle, MoreHorizontal, Pencil, Trash2, Archive,
 } from 'lucide-react';
 import { cn, formatDate, formatRelativeTime, getDeadlineStatus } from '@/lib/utils';
 import { TaskStatusLabel, TaskPriorityLabel, TaskPriority, TaskStatus, Visibility, VisibilityLabel, RoleLabel } from '@/types';
@@ -36,6 +36,8 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
   const [members, setMembers] = useState<MemberDto[]>([]);
   const [edit, setEdit] = useState({ title: '', description: '', source: '', departmentId: '', leaderId: '', priority: TaskPriority.NORMAL, visibility: Visibility.DEPARTMENT, internalDeadline: '', finalDeadline: '', tags: '' });
@@ -97,6 +99,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     } catch (error) { toast.error(error instanceof Error ? error.message : '操作失败。'); }
     finally { setRemoving(false); }
   };
+  const archiveTask = async () => { if (!task) return; setArchiving(true); try { const response = await fetch(`/api/tasks/${task.id}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }); const payload = await response.json() as { success?: boolean; error?: { message?: string } }; if (!response.ok || !payload.success) throw new Error(payload.error?.message ?? '归档失败。'); setTask({ ...task, status: TaskStatus.ARCHIVED }); setArchiveOpen(false); toast.success('任务已完成并归档。'); } catch (error) { toast.error(error instanceof Error ? error.message : '归档失败。'); } finally { setArchiving(false); } };
   const upload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
     if (!file) return;
@@ -167,6 +170,9 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                     <DropdownMenuItem variant="destructive" disabled={removing || task.status === TaskStatus.CANCELLED} onClick={() => setRemoveOpen(true)}><Trash2 /> {task.status === TaskStatus.CANCELLED ? '已取消' : '取消或删除任务'}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              )}
+              {user && ['SUPER_ADMIN', 'SECRETARY'].includes(user.role) && task.status === TaskStatus.APPROVED && (
+                <button onClick={() => setArchiveOpen(true)} className="h-9 px-3 rounded-lg bg-foreground text-background text-sm font-medium inline-flex items-center gap-2"><Archive className="w-4 h-4" />完成并归档</button>
               )}
             </div>
           </div>
@@ -390,6 +396,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
           <DialogFooter><button type="button" disabled={removing} onClick={() => setRemoveOpen(false)} className="h-9 px-4 rounded-lg border border-border text-sm">返回</button><button type="button" disabled={removing} onClick={() => void removeOrCancel()} className="h-9 px-4 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium disabled:opacity-50">{removing ? '处理中…' : '确认继续'}</button></DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}><DialogContent showCloseButton={!archiving}><DialogHeader><DialogTitle>完成并归档</DialogTitle><DialogDescription>系统将固定保存当前已通过文件的版本号，并将任务与这些文件设为只读。不会移动任何磁盘文件。</DialogDescription></DialogHeader><DialogFooter><button type="button" disabled={archiving} onClick={() => setArchiveOpen(false)} className="h-9 px-4 rounded-lg border border-border text-sm">取消</button><button type="button" disabled={archiving} onClick={() => void archiveTask()} className="h-9 px-4 rounded-lg bg-foreground text-background text-sm">{archiving ? '归档中…' : '确认归档'}</button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

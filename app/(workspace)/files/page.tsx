@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { Archive, Download, FileSpreadsheet, FileText, Folder, FolderPlus, Grid3X3, Image, List, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -138,7 +139,7 @@ export default function FilesPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="mb-8 flex items-start justify-between gap-4">
         <div><h1 className="text-2xl font-semibold tracking-tight mb-1">材料中心</h1><p className="text-sm text-muted-foreground">浏览和管理团总支材料文件</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={createFolder}><FolderPlus />新建文件夹</Button><Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '选择文件'}</Button></div>
+        <div className="flex gap-2"><Link href="/files/trash" className="h-9 px-3 rounded-lg border border-border text-sm inline-flex items-center gap-2"><Trash2 className="w-4 h-4" />回收站</Link><Button variant="outline" onClick={createFolder}><FolderPlus />新建文件夹</Button><Button onClick={() => fileInput.current?.click()} disabled={uploading}><Upload />{uploading ? `上传中 ${progress}%` : '选择文件'}</Button></div>
         <input ref={fileInput} type="file" className="hidden" onChange={onSelectFile} />
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
